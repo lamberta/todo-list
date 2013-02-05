@@ -6,7 +6,7 @@
 ;; Created: Jan 2009
 ;; Keywords: todo
 ;; URL: lamberta.posterous.com/emacs-todo-list-mode
-;; $Revision: 0.1 $
+;; $Revision: 0.2 $
 
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -74,7 +74,7 @@
    ("^2[a-z]?[\t ].*$" 0 todo-list-two-face t)
    ("^3[a-z]?[\t ].*$" 0 todo-list-three-face t)
    ("^4[a-z]?[\t ].*$" 0 todo-list-four-face t)
-   ("^C[\t ].*$" 0 todo-list-complete-face t)  ;task completed
+   ("^[Cc][\t ].*$" 0 todo-list-complete-face t)  ;task completed
    ("#.*$" 0 font-lock-comment-face t) ;hash-style comments
 ))
 
