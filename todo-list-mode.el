@@ -5,9 +5,9 @@
 ;;
 ;; Author: Billy Lamberta <b@lamberta.org>
 ;; Created: Jan 2009
-;; Updated: Feb 2013
+;; Updated: Jan 2014
 ;; Keywords: todo
-;; $Revision: 0.2 $
+;; $Revision: 0.3 $
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -64,6 +64,10 @@
 ;;
 ;; Regexps and faces are defined in this file below. Feel free to add
 ;; more or change the colors to suit your own style.
+;;
+;; Navigation:
+;; TAB    Jump between columns
+;; RETURN When cursor at end of line, automatically sort buffer
 
 (setq todo-list-highlight-regexps '(
    ("^0[a-z]?[\t ].*$" 0 todo-list-zero-face t)  ;0 ...
@@ -131,7 +135,7 @@
   "Todo-List mode face used for level 4 task.")
 
 (defface todo-list-complete-face'(
-  (((class color) (background dark))  (:foreground "gray22"))
+  (((class color) (background dark))  (:foreground "#999"))
   (((class color) (background light)) (:foreground "gray75"))
   (t (:bold t :italic t)))
   "Todo-List mode face used for completed task."
@@ -140,10 +144,10 @@
   "Todo-List mode face used for completed task.")
 
 ;;
-;; convenience functions and key-bindings
+;; convenience functions
 ;;
 
-(defun sort-buffer ()
+(defun todo-list-sort-buffer ()
   "Run sort-lines on entire buffer and remove empty lines."
   (interactive)
   (mark-whole-buffer)
@@ -151,18 +155,29 @@
   (sort-lines nil (region-beginning) (region-end))
   (delete-trailing-whitespace))
 
-
-(define-key todo-list-mode-map (kbd "C-<return>") 'newline)
+(defun todo-list-cursor-jump ()
+  "Quick cursor jump between formatting columns."
+  (interactive)
+  (if (>= (current-column) 3)
+    (move-beginning-of-line 1)
+    (progn
+      (move-end-of-line 1)
+      (if (< (current-column) 3)
+        (indent-to 3)
+        (progn
+          (move-beginning-of-line 1)
+          (forward-char 3))))))
 
 (define-key todo-list-mode-map (kbd "<return>")
   '(lambda ()
-     "Add newline if cursor begins a line, otherwise sort and save buffer."
+     "Sort todo-list buffer at end of line, otherwise insert newline."
      (interactive)
-     (if (= (current-column) 0)
-       (newline)
-       (progn
-         (sort-buffer)
-         (save-buffer)))))
+     (let ((next-char (char-after)))
+       (if (or (null next-char) (char-equal next-char ?\n))
+         (todo-list-sort-buffer)
+         (newline)))))
 
-
+(define-key todo-list-mode-map (kbd "C-<return>") 'newline)
+(define-key todo-list-mode-map (kbd "<tab>") 'todo-list-cursor-jump)
+ 
 (provide 'todo-list-mode)
