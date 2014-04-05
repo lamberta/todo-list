@@ -33,18 +33,18 @@
 ;; and saved after a new entry.
 ;;
 ;; In your .emacs:
-;;     (add-to-list 'load-path "~/my-lisp-path/")
-;;     (autoload 'todo-list-mode "todo-list-mode")
+;;   (add-to-list 'load-path "~/my-lisp-path/")
+;;   (autoload 'todo-list-mode "todo-list-mode")
 ;;
 ;; To use: M-x todo-list-mode
 ;;
 ;; To access it at the push of a button:
-;;     (defun open-todo-list ()
-;;       "Open up a todo list in todo-list-mode."
-;;       (interactive)
-;;       (find-file "~/path-to/todo.txt")
-;;       (todo-list-mode))
-;;     (global-set-key [f12] 'open-todo-list) ;shortcut
+;;   (defun open-todo-list ()
+;;     "Open up a todo list in todo-list-mode."
+;;     (interactive)
+;;     (find-file "~/path-to/todo.txt")
+;;     (todo-list-mode))
+;;   (global-set-key [f12] 'open-todo-list) ;shortcut
 ;;
 ;; The format for a given line is:
 ;; [number] [whitespace] [text]
@@ -68,6 +68,13 @@
 ;; Navigation:
 ;; TAB    Jump between columns
 ;; RETURN When cursor at end of line, automatically sort buffer
+;;
+;;  urgent  not-urgent
+;; |-------|-------|
+;; |   1   |   2   | important
+;; |-------|-------|
+;; |   3   |   4   | not-important
+;; |-------|-------|
 
 (setq todo-list-highlight-regexps '(
    ("^0[a-z]?[\t ].*$" 0 todo-list-zero-face t)  ;0 ...
