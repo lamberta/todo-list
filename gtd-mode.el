@@ -224,13 +224,13 @@
 
 (defun with-temp-file (filename callback)
   "Open FILENAME in a new buffer where the CALLBACK function is executed.
-   If the buffer wasn't previously open, close when done.
-   Should be a macro, but whatever."
-  (let* ((filepath (expand-file-name filename))
-         (buffer-open-p (not (null (get-file-buffer filepath)))))
-    (with-file filename callback)
-    (if (not buffer-open-p)
-      (kill-buffer-if-not-modified (get-file-buffer filepath)))))
+   Used for processing the contents of a file, not visiting it."
+  (let ((filepath (expand-file-name filename)))
+    (if (not (file-exists-p filepath))
+      (funcall callback (format "Unable to read file: %s" filename))
+      (with-temp-buffer
+        (insert-file-contents filepath)
+        (funcall callback nil)))))
 
 (defun read-filename-from-minibuffer (&optional prompt)
   "Prompt user to select a gtd file contained in `gtd-file-alist'.
@@ -448,13 +448,18 @@
       (progn (message err) nil)
       t)))
 
-(defun gtd-jump ()
+;;making tag list finds/opens file first (which runs slow flyspell)
+;;then passing to jump-to-file/tag finds/opens again (double slow)
+;;need to disable flyspell/hooks on that first visit
+(defun gtd-jump (&optional selector)
   "Quickly jump to a section tag or a file."
   (interactive)
-  (let* ((tag-alist (make-tag-file-alist))
-         (combined-alist (append gtd-file-alist tag-alist))
-         (selected-alist (completing-read-alist combined-alist "Jump to:"))
-         selected-pair)
+  (let* (selected-alist selected-pair
+         (tag-alist (make-tag-file-alist))
+         (combined-alist (append gtd-file-alist tag-alist)))
+    (setq selected-alist (if selector
+                           (assoc-all selector combined-alist)
+                           (completing-read-alist combined-alist "Jump to:")))
     (cond
       ((null selected-alist)
         (message "Nothing selected."))
@@ -489,7 +494,7 @@
 
 (define-minor-mode gtd-mode
   "Commands for Getting Things Done."
-  :lighter " GTD"
+  :lighter " gtd"
   :keymap gtd-mode-map
   :after-hook (run-after-hooks)
   (font-lock-mode 1)
