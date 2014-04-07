@@ -70,23 +70,22 @@
 ;;
 ;; (autoload 'gtd-mode "gtd-mode" "Minor mode for Getting Things Done." t)
 ;;
-;; (setq gtd-file-alist '(("inbox" . "~/doc/inbox.txt")
-;;                        ("projects" . "~/doc/projects.txt")))
+;; (setq
+;;   gtd-file-alist
+;;   '(("inbox" . "~/doc/inbox.txt")
+;;     ("projects" . "~/doc/projects.md"))
+;;   gtd-default-file "todo"
+;;   gtd-default-tag "home")
 ;;
-;; (add-hook 'gtd-mode-hook
-;;   '(lambda ()
-;;     (setq
-;;       gtd-default-file "projects"
-;;       gtd-default-tag "waiting")))
-;;
-;;  (add-hook 'text-mode-hook
-;;    #'(lambda ()
-;;      "Auto enable gtd-mode for text files in `gtd-file-alist'."
-;;      (if (member (buffer-file-name (current-buffer))
-;;            (mapcar #'expand-file-name (mapcar #'cdr gtd-file-alist)))
+;; (add-hook 'find-file-hook
+;;   #'(lambda ()
+;;       "Auto-enable gtd-mode for files in `gtd-file-alist'."
+;;       (if (member (buffer-file-name (current-buffer))
+;;             (mapcar #'expand-file-name (mapcar #'cdr gtd-file-alist)))
 ;;        (gtd-mode 1))))
 ;;
-;; And example of a gtd text file with context tags could look like:
+;;
+;; An example of a gtd text file using context tags could look like:
 ;;
 ;; @waiting
 ;;
@@ -448,9 +447,6 @@
       (progn (message err) nil)
       t)))
 
-;;making tag list finds/opens file first (which runs slow flyspell)
-;;then passing to jump-to-file/tag finds/opens again (double slow)
-;;need to disable flyspell/hooks on that first visit
 (defun gtd-jump (&optional selector)
   "Quickly jump to a section tag or a file."
   (interactive)
@@ -491,7 +487,6 @@
 (defvar gtd-tag-prefix nil)
 (defvar gtd-tag-face 'gtd-tag-face "gtd-mode face used for context tags.")
 
-
 (define-minor-mode gtd-mode
   "Commands for Getting Things Done."
   :lighter " gtd"
@@ -500,31 +495,27 @@
   (font-lock-mode 1)
   (outline-minor-mode 1))
 
-
 (defun run-after-hooks ()
   ;;highlighting
   (font-lock-add-keywords nil (list (list gtd-tag-regexp 0 gtd-tag-face t)))
-  
   ;;imenu
   (add-to-list 'imenu-generic-expression (list nil gtd-tag-regexp 1))
   (setq-local imenu-auto-rescan t)
   (imenu-add-to-menubar "Tags")
-
   ;;outline
   (setq gtd-tag-prefix (replace-regexp-in-string "%s.*" "" gtd-tag-format))
-  (setq-local outline-regexp (format "%s\\|%s.+" outline-regexp gtd-tag-prefix))
+  (setq-local outline-regexp (format "%s\\|%s.+" outline-regexp gtd-tag-prefix)))
 
-  (defun gtd-outline-cycle ()
-    "If cursor is on a header, toggle visibility of corresponding children.
-     Otherwise, insert a tab using `indent-relative'."
-    (interactive)
-    (if (not (outline-on-heading-p t))
-      (indent-relative)
-      (if (outline-invisible-p (line-end-position))
-        (show-subtree)
-        (hide-subtree))))
-
-  (define-key gtd-mode-map (kbd "<tab>") 'gtd-outline-cycle))
-
+(eval-after-load 'outline-minor
+  (progn
+    (defun gtd-outline-cycle ()
+      "If cursor is on a header, toggle visibility of corresponding children. Otherwise, insert a tab using `indent-relative'."
+      (interactive)
+      (if (not (outline-on-heading-p t))
+        (indent-relative)
+        (if (outline-invisible-p (line-end-position))
+          (show-subtree)
+          (hide-subtree))))
+    (define-key gtd-mode-map (kbd "<tab>") 'gtd-outline-cycle)))
 
 (provide 'gtd-mode)
