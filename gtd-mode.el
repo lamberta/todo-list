@@ -28,9 +28,9 @@
 ;; Description:
 ;;
 ;; `gtd-mode' is a minor mode that adds commands to quickly navigate
-;; multiple files and the tags within. Search, jump, and move blocks
+;; multiple files and the tags within. Search, go to, and move blocks
 ;; of text from one file to the next, automatically positioning it
-;; beneath the desired destination tag. This mode is a naive
+;; beneath a selected destination context. This mode is a naive
 ;; interpretation of the Getting Things Done methodology for organization
 ;; using plain text files and simple tag markers for contexts.
 ;;
@@ -45,13 +45,12 @@
 ;; spaces between sections and entries will make it easier to move
 ;; them around later.
 ;;
-;; As of now, the big commands are `gtd-jump' and `gtd-move', bound
-;; to `C-c j' and `C-c m', respectively. Jumping allows you to
-;; quickly move between files and tag sections. Moving takes the
-;; current text block at your cursor, or the highlighted region, and
-;; moves it to another section tag---even in different files.
-;; gtd-mode will recognize any files set in `gtd-files-alist' and
-;; will automatically use any of tags contained within.
+;; As of now, the big commands are `gtd-goto' and `gtd-move', bound to
+;; `C-c g' and `C-c m', respectively. Quickly go between files and tag
+;; sections. Moving takes the current text block at your cursor, or
+;; the highlighted region, and moves it to another section tag---even
+;; in different files. gtd-mode will recognize any files set in
+;; `gtd-files-alist' and will automatically use any of tags contained within.
 ;;
 ;; Setting `gtd-default-file' and `gtd-default-tag' to your favorites
 ;; allows you to quickly punch through the minibuffer prompts.
@@ -104,10 +103,11 @@
 ;; etc.
 ;;
 ;; TODO:
+;; * The goal is easy collection and one-click processing.
 ;; * Move task from beneath a project label to the next-actions list,
 ;;   automatically appending the project name as a tag to the moved task.
-;; * Add ido support for tab-completion.
 ;; * Quickly move to a project or create a new one
+;; * next-entry
 
 (defgroup gtd nil
   "Support for Getting Things Done."
@@ -190,7 +190,7 @@
     (replace-match "\n")
     (forward-char 1)))
 
-(defun gtd-insert-timestamp ()
+(defun gtd-timestamp ()
   "Insert the current time and date."
   (interactive)
   (let ((date-format "%l:%M%P %b %e %Y %a"))
@@ -481,7 +481,7 @@
         (kill-region (region-beginning) (region-end))
         (delete-blank-lines)
         (if moved-to-trash-p
-          (message "Entry moved to trashcan.")
+          (message "Entry moved to trash.")
           (message "Entry deleted."))
         t))))
 
@@ -489,8 +489,8 @@
 ;; MOVEMENT
 ;;
 
-(defun gtd-jump-to-file (&optional filename shortname-p)
-  "Jump to the file buffer designated by FILENAME, or prompt if not given.
+(defun gtd-goto-file (&optional filename shortname-p)
+  "Open the file buffer designated by FILENAME, or prompt if not given.
    Use shortname for file lookup if SHORTNAME-P is T."
   (interactive)
   (let (filepath)
@@ -500,7 +500,7 @@
       ((not (null filename))
         (setq filepath filename))
       (t
-        (let ((file-alist (completing-read-alist gtd-file-alist "Jump to file:" gtd-default-file)))
+        (let ((file-alist (completing-read-alist gtd-file-alist "Go to file:" gtd-default-file)))
           (setq filepath (cdr (first file-alist))))))
     (if filepath
       (setq filepath (expand-file-name filepath)))
@@ -508,40 +508,41 @@
       (progn (switch-to-buffer (find-file-noselect filepath)) t)
       (progn (message "Unable to read file: %s" filepath) nil))))
 
-(defun gtd-jump-to-tag (&optional tag tag-alist)
-  "Jump to the buffer and position where TAG is located."
+(defun gtd-goto-tag (&optional tag tag-alist)
+  "Open the file buffer and position where TAG is located."
   (interactive)
   (if (null tag-alist) (setq tag-alist (make-tag-file-alist)))
   (let (tag-pair err)
     (setq tag-pair (if tag
                      (select-tag tag tag-alist)
-                     (read-tag-from-minibuffer "Jump to tag:" tag-alist)))
+                     (read-tag-from-minibuffer "Go to tag:" tag-alist)))
     (if (null tag-pair)
       (setq err (format "Unable to locate tag: %s" tag))
-      (with-file (cdr tag-pair)
-        #'(lambda (err-msg)
-            (if err-msg
-              (setq err err-msg)
-              (let ((tag-marker (format gtd-tag-format (car tag-pair))))
-                (goto-char (point-min))
-                (if (not (re-search-forward tag-marker nil t))
-                  (setq err (format "Unable to find tag %s in file %s" (car tag-pair) (cdr tag-pair)))
-                  (progn
-                    (beginning-of-line)
-                    (switch-to-buffer (current-buffer)))))))))
+      (let ((keep-open-p t))
+        (with-file (cdr tag-pair)
+          #'(lambda (err-msg)
+              (if err-msg
+                (setq err err-msg)
+                (let ((tag-marker (format gtd-tag-format (car tag-pair))))
+                  (goto-char (point-min))
+                  (if (not (re-search-forward tag-marker nil t))
+                    (setq err (format "Unable to find tag %s in file %s" (car tag-pair) (cdr tag-pair)))
+                    (progn
+                      (beginning-of-line)
+                      (switch-to-buffer (current-buffer))))))) keep-open-p)))
     (if err
       (progn (message err) nil)
       t)))
 
-(defun gtd-jump (&optional selector)
-  "Quickly jump to a section tag or a file."
+(defun gtd-goto (&optional selector)
+  "Quickly open a file or context label."
   (interactive)
   (let* (selected-alist selected-pair
          (tag-alist (make-tag-file-alist))
          (combined-alist (append gtd-file-alist tag-alist)))
     (setq selected-alist (if selector
                            (assoc-all selector combined-alist)
-                           (completing-read-alist combined-alist "Jump to:")))
+                           (completing-read-alist combined-alist "Go to:")))
     (cond
       ((null selected-alist)
         (message "Nothing selected."))
@@ -555,18 +556,19 @@
     (if (null selected-pair)
       nil
       (if (file-entry-p selected-pair)
-        (gtd-jump-to-file (cdr selected-pair))
-        (gtd-jump-to-tag (car selected-pair) tag-alist)))))
+        (gtd-goto-file (cdr selected-pair))
+        (gtd-goto-tag (car selected-pair) tag-alist)))))
 
 ;;
 ;; KEYBINDINGS
 ;;
 
 (defvar gtd-mode-map (make-sparse-keymap))
-(define-key gtd-mode-map (kbd "C-c j") 'gtd-jump)
+(define-key gtd-mode-map (kbd "C-c g") 'gtd-goto)
 (define-key gtd-mode-map (kbd "C-c m") 'gtd-move)
 (define-key gtd-mode-map (kbd "C-c d") 'gtd-delete)
-(define-key gtd-mode-map (kbd "C-c T") 'gtd-insert-timestamp)
+(define-key gtd-mode-map (kbd "C-c <backspace>") 'gtd-delete)
+(define-key gtd-mode-map (kbd "C-c T") 'gtd-timestamp)
 
 ;;
 ;; GO!
