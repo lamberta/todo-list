@@ -45,7 +45,7 @@
 ;; spaces between sections and entries will make it easier to move
 ;; them around later.
 ;;
-;; As of now, the big commands are `gtd-goto' and `gtd-move', bound to
+;; As of now, the big commands are `gtd-goto' and `gtd-send', bound to
 ;; `C-c g' and `C-c m', respectively. Quickly go between files and tag
 ;; sections. Moving takes the current text block at your cursor, or
 ;; the highlighted region, and moves it to another section tag---even
@@ -102,14 +102,23 @@
 ;;
 ;; etc.
 ;;
+;; Terms and concepts for this GTD implementation:
+;; * file - A collection of one or more {lists}. Sometimes referred to as a {list} itself.
+;; * list - A collection of {entries}, classified by a {label}, located in a {file}.
+;; * entry - A single block of text contained in {list}. Entries are separated by a newline.
+;; * label - Generically denotes a {list} section within a {file}. Format: '@listname'
+;; * context - The {label} name for {lists} contained in the [next-actions] {file}.
+;; * project - The {label} name for {lists} contained in the [projects] {file}.
+;; * tag - Metadata associated with an {entry}, such as a timestamp. Format: '<tag data>'
+;;
 ;; TODO:
 ;; * The goal is easy collection and one-click processing.
 ;; * Move task from beneath a project label to the next-actions list,
 ;;   automatically appending the project name as a tag to the moved task.
-;; * Quickly move to a project or create a new one (filter tags?)
 ;; * jump to next-entry in file
 ;; * resolve name confusion: label-tags => contexts
 ;; * add applescript command for adding entry to calendar
+;; * context aware menu options: action/project/reference/defer/etc
 
 (defgroup gtd nil
   "Support for Getting Things Done."
@@ -444,13 +453,15 @@
           pos)
         nil))))
 
-(defun gtd-move (&optional tag-alist goto-p)
-  "Move current entry to the prompted tag in its associated file.
-   If GOTO-P is T then open up the buffer and view at insertion point."
+(defun gtd-send (&optional tag-alist goto-p)
+  "Send current entry to the prompted tag in its associated file.
+   By default, sending an entry doesn't follow it. If GOTO-P is T,
+   open up the buffer and view at the insertion point."
   (interactive)
   (let ((text (entry-at-point)))
     (if text
-      (let* ((tag-pair (read-tag-from-minibuffer "Move to tag:" tag-alist))
+      (let* ((action (if goto-p "Move" "Send"))
+	     (tag-pair (read-tag-from-minibuffer (concat action " to tag:") tag-alist))
              (filepath (if tag-pair
                          (expand-file-name (cdr tag-pair))
                          nil)))
@@ -473,12 +484,16 @@
                           (goto-char pos)))))))
             goto-p))))))
 
-(defun gtd-move-to-project (&optional goto-p)
-  "Move the current entry to the context label in the projects file.
-   If GOTO-P is T then view the file."
-  (interactive)
-  (let ((filename (cdr (assoc "projects" gtd-file-alist))))
-    (gtd-move (tag-list-from-file filename t) goto-p)))
+(defun gtd-send-to-label-in-file (filename &optional goto-p fullpath-p)
+  "Send the current entry to a context label in FILENAME, which is set
+   in `gtd-file-alist'. The default is to use the shortname for the file
+   unless FULLPATH-P is T. Open the file buffer if GOTO-P is T."
+  (let ((filepath (if fullpath-p
+		    (cdr (rassoc filename gtd-file-alist))
+		    (cdr (assoc filename gtd-file-alist)))))
+    (if filepath
+      (gtd-send (tag-list-from-file filepath) goto-p)
+      nil)))
 
 (defun gtd-delete ()
   "Delete the selected entry from the current buffer.
@@ -489,10 +504,10 @@
       (progn
         (message "No entry selected.")
         nil)
-      (let ((moved-to-trash-p nil)
+      (let ((sent-to-trash-p nil)
             (filepath (if (stringp gtd-trash)
                         (expand-file-name gtd-trash))))
-        ;;if trash file set, move entry there
+        ;;if trash file set, send entry there
         (when (and filepath (file-writable-p filepath))
           (file-touch filepath)
           (with-file filepath
@@ -503,12 +518,12 @@
                     (end-of-buffer)
                     (insert (eof-pad) entry)
                     (save-buffer)
-                    (setq moved-to-trash-p t))))))
+                    (setq sent-to-trash-p t))))))
         ;;delete entry in current buffer
         (kill-region (region-beginning) (region-end))
         (delete-blank-lines)
-        (if moved-to-trash-p
-          (message "Entry moved to trash.")
+        (if sent-to-trash-p
+          (message "Entry sent to trash.")
           (message "Entry deleted."))
         t))))
 
@@ -593,16 +608,42 @@
         (gtd-goto-tag (car selected-pair) tag-alist)))))
 
 ;;
+;; FILE SPECIFIC !!!
+;; Convenience shortcuts for now, until I figure out a better config abstraction.
+;;
+
+(defun gtd-send-to-project ()
+  "Send the current entry to the project label in the [projects] file."
+  (interactive)
+  (gtd-send-to-label-in-file "projects"))
+
+(defun gtd-move-to-project ()
+  "Move the current entry to the project label in the [projects] file."
+  (interactive)
+  (gtd-send-to-label-in-file "projects" t))
+
+(defun gtd-send-to-actions ()
+  "Send the current entry to the context label in the [next-actions] file."
+  (interactive)
+  (gtd-send-to-label-in-file "next-actions"))
+
+(defun gtd-move-to-actions ()
+  "Move the current entry to the context label in the [next-actions] file."
+  (interactive)
+  (gtd-send-to-label-in-file "next-actions" t))
+
+;;
 ;; KEYBINDINGS
 ;;
 
 (defun gtd-display-keybindings ()
   (interactive)
-  (message "Commands [C-c]: {g}oto, {m}ove, {d}elete, {T}imestamp"))
+  (message "Commands [C-c]: {g}oto, {m}ove, {s}end, {d}elete, {T}imestamp"))
 
 (defvar gtd-mode-map (make-sparse-keymap))
 (define-key gtd-mode-map (kbd "C-c g") 'gtd-goto)
 (define-key gtd-mode-map (kbd "C-c m") 'gtd-move)
+(define-key gtd-mode-map (kbd "C-c s") 'gtd-send)
 (define-key gtd-mode-map (kbd "C-c d") 'gtd-delete)
 (define-key gtd-mode-map (kbd "C-c <backspace>") 'gtd-delete)
 (define-key gtd-mode-map (kbd "C-c T") 'gtd-timestamp)
