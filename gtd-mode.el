@@ -75,7 +75,8 @@
 ;;   '(("inbox" . "~/doc/inbox.txt")
 ;;     ("projects" . "~/doc/projects.md"))
 ;;   gtd-default-file "todo"
-;;   gtd-default-tag "home")
+;;   gtd-default-tag "home"
+;;   gtd-trash "~/doc/todo/trash.txt")
 ;;
 ;; (add-hook 'find-file-hook
 ;;   #'(lambda ()
@@ -102,6 +103,11 @@
 ;;
 ;; etc.
 ;;
+;; TODO:
+;; * Move task from beneath a project label to the next-actions list,
+;;   automatically appending the project name as a tag to the moved task.
+;; * Add ido support for tab-completion.
+;; * Quickly move to a project or create a new one
 
 (defgroup gtd nil
   "Support for Getting Things Done."
@@ -123,6 +129,11 @@
   :type 'string
   :group 'gtd)
 
+(defcustom gtd-trash nil
+  "Path to file where trashed items are sent. If file doesn't exist, just delete the item."
+  :type 'file
+  :group 'gtd)
+
 (defcustom gtd-tag-format "@%s"
   "Format string to write the tag out."
   :type 'string
@@ -141,7 +152,14 @@
   (((class color) (background dark))  (:foreground "IndianRed1"))
   (((class color) (background light)) (:foreground "Red3"))
   (t (:bold t :italic t)))
-  "gtd-mode face used for context tags."
+  "gtd-mode face used for context labels."
+  :group 'gtd)
+
+(defface gtd-subdue-face '(
+  (((class color) (background dark))  (:foreground "gray40"))
+  (((class color) (background light)) (:foreground "gray40"))
+  (t (:bold nil :italic nil)))
+  "gtd-mode face used for subdued text, links, and formatting characters."
   :group 'gtd)
 
 ;;
@@ -171,6 +189,14 @@
   (while (re-search-forward "\\(^\\s-*$\\)\n" nil t)
     (replace-match "\n")
     (forward-char 1)))
+
+(defun gtd-insert-timestamp ()
+  "Insert the current time and date."
+  (interactive)
+  (let ((date-format "%l:%M%P %b %e %Y %a"))
+    (insert (format "<%s>" (replace-regexp-in-string "[ ]+" " "
+                             (replace-regexp-in-string "^[ ]" ""
+                               (format-time-string date-format (current-time))))))))
 
 (defun make-prompt (label &optional default-choice)
   "Create a prompt to use in the minibuffer."
@@ -212,18 +238,25 @@
 ;; FILES
 ;;
 
-(defun with-file (filename callback)
+(defun with-file (filename callback &optional keep-open-p)
   "Open FILENAME in a new buffer where the CALLBACK function is executed.
-   CALLBACK is passed a single STRING argument if an error occured, or NIL if fine."
+   CALLBACK is passed a single STRING argument if an error occured, or NIL if ok.
+   If not already open, a file buffer is closed when done unless KEEP-OPEN-P is T."
   (let ((filepath (expand-file-name filename)))
     (if (not (file-exists-p filepath))
       (funcall callback (format "Unable to read file: %s" filename))
-      (with-current-buffer (find-file-noselect filepath)
-        (funcall callback nil)))))
+      (let* ((filebuffer (get-file-buffer filepath))
+             (is-open-p (not (null filebuffer))))
+        (if (null filebuffer)
+          (setq filebuffer (find-file-noselect filepath)))
+        (with-current-buffer filebuffer
+          (funcall callback nil)
+          (if (and (not is-open-p) (not keep-open-p))
+            (kill-buffer)))))))
 
 (defun with-temp-file (filename callback)
-  "Open FILENAME in a new buffer where the CALLBACK function is executed.
-   Used for processing the contents of a file, not visiting it."
+  "Open FILENAME into a new temp buffer where the CALLBACK function is executed.
+   Used for processing the contents of a file, not visiting and editing it."
   (let ((filepath (expand-file-name filename)))
     (if (not (file-exists-p filepath))
       (funcall callback (format "Unable to read file: %s" filename))
@@ -366,6 +399,20 @@
 ;; INSERTION
 ;;
 
+(defun eof-pad ()
+  "Return a STRING with end-of-file whitespace needed for adding a new entry
+   in the current buffer. Deletes trailing whitespace if needed."
+  (save-excursion
+    (end-of-buffer)
+    (let ((char (char-before)))
+      (cond
+        ((null char) "")
+        ((not (string= (string char) "\n"))
+          (format "\n\n"))
+        (t
+          (delete-trailing-whitespace)
+          (format "\n"))))))
+
 (defun insert-string-at-tag (text tag)
   "Insert the TEXT string beneath the given TAG within the current buffer."
   (unless (and (stringp text) (stringp tag))
@@ -398,6 +445,37 @@
                     (save-buffer)))))
           (kill-region (region-beginning) (region-end))
           (delete-blank-lines))))))
+
+(defun gtd-trash-entry ()
+  "Delete the selected entry from the current buffer.
+   If `gtd-trash' is set, append the entry to that file."
+  (interactive)
+  (let ((entry (entry-at-point)))
+    (if (not entry)
+      (progn
+        (message "No entry selected.")
+        nil)
+      (let ((moved-to-trash-p nil)
+            (filepath (if (stringp gtd-trash)
+                        (expand-file-name gtd-trash))))
+        ;;if trash file set, move entry there
+        (if (and filepath (file-writable-p filepath))
+          (with-file filepath
+            #'(lambda (err-msg)
+                (if err-msg
+                  (error err-msg)
+                  (progn
+                    (end-of-buffer)
+                    (insert (eof-pad) entry)
+                    (save-buffer)
+                    (setq moved-to-trash-p t))))))
+        ;;delete entry in current buffer
+        (kill-region (region-beginning) (region-end))
+        (delete-blank-lines)
+        (if moved-to-trash-p
+          (message "Entry moved to trashcan.")
+          (message "Entry deleted."))
+        t))))
 
 ;;
 ;; MOVEMENT
@@ -477,8 +555,10 @@
 ;;
 
 (defvar gtd-mode-map (make-sparse-keymap))
-(define-key gtd-mode-map (kbd "C-c m") 'gtd-move)
 (define-key gtd-mode-map (kbd "C-c j") 'gtd-jump)
+(define-key gtd-mode-map (kbd "C-c m") 'gtd-move)
+(define-key gtd-mode-map (kbd "C-c t") 'gtd-trash-entry)
+(define-key gtd-mode-map (kbd "C-c T") 'gtd-insert-timestamp)
 
 ;;
 ;; GO!
@@ -486,6 +566,7 @@
 
 (defvar gtd-tag-prefix nil)
 (defvar gtd-tag-face 'gtd-tag-face "gtd-mode face used for context tags.")
+(defvar gtd-subdue-face 'gtd-subdue-face "gtd-mode face used for subdued text.")
 
 (define-minor-mode gtd-mode
   "Commands for Getting Things Done."
@@ -497,7 +578,15 @@
 
 (defun run-after-hooks ()
   ;;highlighting
-  (font-lock-add-keywords nil (list (list gtd-tag-regexp 0 gtd-tag-face t)))
+  (let ((link-def "\\(\\[\\)\\(.*\\)\\(\\]\\[.*\\]\\)") ;3 groups
+        (link-desc "^\\[[A-Za-z0-9]*\\]:[[:space:]]?.*$"))
+    (font-lock-add-keywords nil
+      (list
+        (list gtd-tag-regexp 0 gtd-tag-face t)
+        '("<.*>" 0 gtd-subdue-face t)
+        (list link-def 1 gtd-subdue-face t) ;front bracket
+        (list link-def 3 gtd-subdue-face t) ;end of tags
+        (list link-desc 0 gtd-subdue-face t))))
   ;;imenu
   (add-to-list 'imenu-generic-expression (list nil gtd-tag-regexp 1))
   (setq-local imenu-auto-rescan t)
