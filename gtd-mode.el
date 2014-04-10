@@ -106,8 +106,10 @@
 ;; * The goal is easy collection and one-click processing.
 ;; * Move task from beneath a project label to the next-actions list,
 ;;   automatically appending the project name as a tag to the moved task.
-;; * Quickly move to a project or create a new one
-;; * next-entry
+;; * Quickly move to a project or create a new one (filter tags?)
+;; * jump to next-entry in file
+;; * resolve name confusion: label-tags => contexts
+;; * add applescript command for adding entry to calendar
 
 (defgroup gtd nil
   "Support for Getting Things Done."
@@ -287,8 +289,10 @@
 ;; TAGS
 ;;
 
-(defun tag-list-from-file (filename)
-  "Return a LIST of tags contained within FILENAME. Ignores duplicates."
+(defun tag-list-from-file (filename &optional alist-p)
+  "Return a LIST of tags contained within FILENAME, ignoring
+   duplicates. If ALIST-P is T, create an alist using the tag
+   as key and FILENAME for each value."
   (let ((tag-list (list)))
     (with-temp-file filename
       #'(lambda (err-msg)
@@ -302,7 +306,9 @@
                   ;;normalize
                   (if (string-match gtd-tag-regexp tagname)
                     (setq tagname (match-string 1 tagname)))
-                  (add-to-list 'tag-list tagname t)))))))
+                  (add-to-list 'tag-list (if alist-p
+                                           (cons tagname filename)
+                                           tagname) t)))))))
     tag-list))
 
 (defun file-contains-tag-p (filename tag)
@@ -421,37 +427,58 @@
           (format "\n"))))))
 
 (defun insert-string-at-tag (text tag)
-  "Insert the TEXT string beneath the given TAG within the current buffer."
+  "Insert the TEXT string beneath the given TAG within the current buffer.
+   Return the buffer position where the text starts insertion."
   (unless (and (stringp text) (stringp tag))
     (error "Invalid arguments."))
-  (let ((tag-marker (format gtd-tag-format tag)))
+  (let (pos (tag-marker (format gtd-tag-format tag)))
     (save-excursion
       (goto-char (point-min))
       ;;position at the end of the tag marker
       (if (re-search-forward tag-marker nil t)
-        ;;determines how an entry is formatted
-        (insert "\n\n" text) ;gtd-entry-prefix?
-        (error "Tag '%s' not found in %s" tag (buffer-name))))))
+        (progn
+          ;;determines how an entry is formatted
+          (insert "\n\n")
+          (setq pos (point))
+          (insert text)
+          pos)
+        nil))))
 
-(defun gtd-move ()
-  "Move current entry to the prompted tag in its associated file."
+(defun gtd-move (&optional tag-alist goto-p)
+  "Move current entry to the prompted tag in its associated file.
+   If GOTO-P is T then open up the buffer and view at insertion point."
   (interactive)
   (let ((text (entry-at-point)))
     (if text
-      (let* ((tag-pair (read-tag-from-minibuffer "Move to tag:"))
+      (let* ((tag-pair (read-tag-from-minibuffer "Move to tag:" tag-alist))
              (filepath (if tag-pair
                          (expand-file-name (cdr tag-pair))
                          nil)))
         (when (and filepath (file-writable-p filepath))
-          (with-temp-file filepath
+          ;;kill selection
+          (kill-region (region-beginning) (region-end))
+          (delete-blank-lines)
+          ;;insert text under label
+          (with-file filepath
             #'(lambda (err-msg)
                 (if err-msg
                   (error err-msg)
-                  (progn
-                    (insert-string-at-tag text (car tag-pair))
-                    (save-buffer)))))
-          (kill-region (region-beginning) (region-end))
-          (delete-blank-lines))))))
+                  (let ((pos (insert-string-at-tag text (car tag-pair))))
+                    (if (null pos)
+                      (error "Unable to insert at tag.")
+                      (progn
+                        (save-buffer)
+                        (when goto-p
+                          (switch-to-buffer (current-buffer))
+                          (goto-char pos)))))))
+            goto-p))))))
+
+(defun gtd-move-to-project (&optional goto-p)
+  "Move the current entry to the context label in the projects file.
+   If GOTO-P is T then view the file."
+  (interactive)
+  (let ((filename (cdr (assoc "projects" gtd-file-alist))))
+    (gtd-move (tag-list-from-file filename t) goto-p)))
 
 (defun gtd-delete ()
   "Delete the selected entry from the current buffer.
@@ -534,6 +561,12 @@
       (progn (message err) nil)
       t)))
 
+(defun gtd-goto-project ()
+  "Go to a context label in the projects file."
+  (interactive)
+  (let ((filename (cdr (assoc "projects" gtd-file-alist))))
+    (gtd-goto-tag nil (tag-list-from-file filename t))))
+
 (defun gtd-goto (&optional selector)
   "Quickly open a file or context label."
   (interactive)
@@ -563,12 +596,17 @@
 ;; KEYBINDINGS
 ;;
 
+(defun gtd-display-keybindings ()
+  (interactive)
+  (message "Commands [C-c]: {g}oto, {m}ove, {d}elete, {T}imestamp"))
+
 (defvar gtd-mode-map (make-sparse-keymap))
 (define-key gtd-mode-map (kbd "C-c g") 'gtd-goto)
 (define-key gtd-mode-map (kbd "C-c m") 'gtd-move)
 (define-key gtd-mode-map (kbd "C-c d") 'gtd-delete)
 (define-key gtd-mode-map (kbd "C-c <backspace>") 'gtd-delete)
 (define-key gtd-mode-map (kbd "C-c T") 'gtd-timestamp)
+(define-key gtd-mode-map (kbd "C-c ?") 'gtd-display-keybindings)
 
 ;;
 ;; GO!
