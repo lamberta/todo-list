@@ -76,7 +76,7 @@
 ;;     ("projects" . "~/doc/projects.md"))
 ;;   gtd-default-file "todo"
 ;;   gtd-default-tag "home"
-;;   gtd-trash "~/doc/todo/trash.txt")
+;;   gtd-trash "~/doc/todo/.trash")
 ;;
 ;; (add-hook 'find-file-hook
 ;;   #'(lambda ()
@@ -276,6 +276,13 @@
       nil
       (assoc shortname gtd-file-alist))))
 
+(defun file-touch (filename)
+  "Use the touch shell command to create an empty file."
+  (setq filename (expand-file-name filename))
+  (if (and (not (file-exists-p filename)) (file-writable-p filename))
+    (progn (call-process "touch" nil nil nil filename) t)
+    nil))
+
 ;;
 ;; TAGS
 ;;
@@ -446,7 +453,7 @@
           (kill-region (region-beginning) (region-end))
           (delete-blank-lines))))))
 
-(defun gtd-trash-entry ()
+(defun gtd-delete ()
   "Delete the selected entry from the current buffer.
    If `gtd-trash' is set, append the entry to that file."
   (interactive)
@@ -459,11 +466,12 @@
             (filepath (if (stringp gtd-trash)
                         (expand-file-name gtd-trash))))
         ;;if trash file set, move entry there
-        (if (and filepath (file-writable-p filepath))
+        (when (and filepath (file-writable-p filepath))
+          (file-touch filepath)
           (with-file filepath
             #'(lambda (err-msg)
                 (if err-msg
-                  (error err-msg)
+                  (message err-msg)
                   (progn
                     (end-of-buffer)
                     (insert (eof-pad) entry)
@@ -557,7 +565,7 @@
 (defvar gtd-mode-map (make-sparse-keymap))
 (define-key gtd-mode-map (kbd "C-c j") 'gtd-jump)
 (define-key gtd-mode-map (kbd "C-c m") 'gtd-move)
-(define-key gtd-mode-map (kbd "C-c t") 'gtd-trash-entry)
+(define-key gtd-mode-map (kbd "C-c d") 'gtd-delete)
 (define-key gtd-mode-map (kbd "C-c T") 'gtd-insert-timestamp)
 
 ;;
