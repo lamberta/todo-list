@@ -1,4 +1,4 @@
-;; gtd-mode.el
+; gtd-mode.el
 ;; Emacs minor-mode for Getting Things Done.
 ;;
 ;; Copyright (C) 2014 Billy Lamberta
@@ -113,11 +113,10 @@
 ;;
 ;; TODO:
 ;; * The goal is easy collection and one-click processing.
-;; * Move task from beneath a project label to the next-actions list,
-;;   automatically appending the project name as a tag to the moved task.
+;; * actions moved out of projects have project tag appended
 ;; * jump to next-entry in file
-;; * resolve name confusion: label-tags => contexts
-;; * add applescript command for adding entry to calendar
+;; * resolve name confusion in source: label-tags => contexts
+;; * applescript command for adding entry to calendar
 ;; * context aware menu options: action/project/reference/defer/etc
 
 (defgroup gtd nil
@@ -216,10 +215,13 @@
     (format "%s " label)))
 
 (defun completing-read-alist (alist &optional prompt default-val)
-  "Read a menu selection from the minibuffer using ALIST for options."
+  "Read a menu selection from the minibuffer using ALIST for options.
+   Return an ALIST of all key matches. Use `ido-completing-read' if it's available."
   (setq prompt (make-prompt (or prompt "Select:") default-val))
-  (let ((entry (completing-read prompt alist nil t nil nil default-val)))
-    (if (valid-entry-p entry)
+  (let* ((choices (all-completions "" alist))
+         (completing-read (if (fboundp #'ido-completing-read) #'ido-completing-read #'completing-read))
+         (entry (funcall completing-read prompt choices nil t nil nil default-val)))
+    (if (valid-entry-p entry alist)
       (assoc-all entry alist))))
 
 (defun valid-entry-p (entry &optional alist)
@@ -274,18 +276,6 @@
       (with-temp-buffer
         (insert-file-contents filepath)
         (funcall callback nil)))))
-
-(defun read-filename-from-minibuffer (&optional prompt)
-  "Prompt user to select a gtd file contained in `gtd-file-alist'.
-   Return the entry containing the shortname and file path.
-   If `gtd-default-file' is set, use the as the prompt default."
-  (unless (and (boundp 'gtd-file-alist) (> (length gtd-file-alist) 0))
-    (error "No GTD files designated in GTD-FILE-ALIST."))
-  (if (null prompt) (setq prompt "File:"))
-  (let ((shortname (completing-read (make-prompt prompt gtd-default-file) gtd-file-alist nil t nil nil gtd-default-file)))
-    (if (or (null shortname) (string= "" shortname))
-      nil
-      (assoc shortname gtd-file-alist))))
 
 (defun file-touch (filename)
   "Use the touch shell command to create an empty file."
@@ -461,10 +451,9 @@
   (let ((text (entry-at-point)))
     (if text
       (let* ((action (if goto-p "Move" "Send"))
-	     (tag-pair (read-tag-from-minibuffer (concat action " to tag:") tag-alist))
-             (filepath (if tag-pair
-                         (expand-file-name (cdr tag-pair))
-                         nil)))
+             (tag-pair (read-tag-from-minibuffer (concat action " to tag:") tag-alist))
+             (filepath (if tag-pair (expand-file-name (cdr tag-pair)))))
+        (assert tag-pair)
         (when (and filepath (file-writable-p filepath))
           ;;kill selection
           (kill-region (region-beginning) (region-end))
@@ -484,15 +473,23 @@
                           (goto-char pos)))))))
             goto-p))))))
 
+(defun gtd-move (&optional tag-alist)
+  "Move the current entry to the prompted tag and open the file."
+  (interactive)
+  (gtd-send tag-alist t))
+
 (defun gtd-send-to-label-in-file (filename &optional goto-p fullpath-p)
   "Send the current entry to a context label in FILENAME, which is set
    in `gtd-file-alist'. The default is to use the shortname for the file
    unless FULLPATH-P is T. Open the file buffer if GOTO-P is T."
-  (let ((filepath (if fullpath-p
-		    (cdr (rassoc filename gtd-file-alist))
-		    (cdr (assoc filename gtd-file-alist)))))
+  (let* ((filepath (if fullpath-p
+                     (cdr (rassoc filename gtd-file-alist))
+                     (cdr (assoc filename gtd-file-alist))))
+         (tag-alist (tag-list-from-file filepath t)))
+    (assert filepath)
+    (assert tag-alist)
     (if filepath
-      (gtd-send (tag-list-from-file filepath) goto-p)
+      (gtd-send tag-alist goto-p)
       nil)))
 
 (defun gtd-delete ()
@@ -622,12 +619,12 @@
   (interactive)
   (gtd-send-to-label-in-file "projects" t))
 
-(defun gtd-send-to-actions ()
+(defun gtd-send-to-action ()
   "Send the current entry to the context label in the [next-actions] file."
   (interactive)
   (gtd-send-to-label-in-file "next-actions"))
 
-(defun gtd-move-to-actions ()
+(defun gtd-move-to-action ()
   "Move the current entry to the context label in the [next-actions] file."
   (interactive)
   (gtd-send-to-label-in-file "next-actions" t))
@@ -637,13 +634,18 @@
 ;;
 
 (defun gtd-display-keybindings ()
+  "Print a quick summary of the GTD keybindings. Bound to: 'C-c ?'"
   (interactive)
-  (message "Commands [C-c]: {g}oto, {m}ove, {s}end, {d}elete, {T}imestamp"))
+  (message "Commands: {g}oto, {m}ove, {s}end, {a|A}ction, {p|P}roject, {d}elete, {T}imestamp"))
 
 (defvar gtd-mode-map (make-sparse-keymap))
 (define-key gtd-mode-map (kbd "C-c g") 'gtd-goto)
 (define-key gtd-mode-map (kbd "C-c m") 'gtd-move)
 (define-key gtd-mode-map (kbd "C-c s") 'gtd-send)
+(define-key gtd-mode-map (kbd "C-c a") 'gtd-send-to-action)
+(define-key gtd-mode-map (kbd "C-c A") 'gtd-move-to-action)
+(define-key gtd-mode-map (kbd "C-c p") 'gtd-send-to-project)
+(define-key gtd-mode-map (kbd "C-c P") 'gtd-move-to-project)
 (define-key gtd-mode-map (kbd "C-c d") 'gtd-delete)
 (define-key gtd-mode-map (kbd "C-c <backspace>") 'gtd-delete)
 (define-key gtd-mode-map (kbd "C-c T") 'gtd-timestamp)
