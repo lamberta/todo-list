@@ -1,4 +1,4 @@
-; gtd-mode.el
+;; gtd-mode.el
 ;; Emacs minor-mode for Getting Things Done.
 ;;
 ;; Copyright (C) 2014 Billy Lamberta
@@ -113,8 +113,8 @@
 ;;
 ;; TODO:
 ;; * The goal is easy collection and one-click processing.
-;; * actions moved out of projects have project tag appended
-;; * jump to next-entry in file
+;; * actions moved out of projects have project tag appended (add tag but check for existing. need tag data format?)
+;; * jump to next-entry in file (more about selecting entry under empty line)
 ;; * resolve name confusion in source: label-tags => contexts
 ;; * applescript command for adding entry to calendar
 ;; * context aware menu options: action/project/reference/defer/etc
@@ -192,6 +192,12 @@
         (add-to-list 'entry-list entry-pair append-p)))
     entry-list))
 
+(defun trim-string (str)
+  "Trims leading and tailing whitespace from STR."
+  (while (string-match "\\`\n+\\|^\\s-+\\|\\s-+$\\|\n+\\'" str)
+    (setq str (replace-match "" t t str)))
+  str)
+
 (defun gtd-squeeze-blank-lines ()
   "Replace multiple blank lines with a single one within the entire buffer."
   (interactive)
@@ -213,6 +219,17 @@
   (if default-choice
     (format "%s [%s] " label default-choice)
     (format "%s " label)))
+
+(defun gtd-completing-read (itemlist &optional prompt default-val)
+  "Read a menu selection from the minibuffer using ALIST for options.
+   Return an ALIST of all key matches. Use `ido-completing-read' if it's available."
+  (setq prompt (make-prompt (or prompt "Select:") default-val))
+  (let* ((choices (all-completions "" itemlist))
+         (completing-read (if (fboundp #'ido-completing-read) #'ido-completing-read #'completing-read))
+         (entry (funcall completing-read prompt choices nil t nil nil default-val)))
+    (if (member entry itemlist)
+      entry
+      nil)))
 
 (defun completing-read-alist (alist &optional prompt default-val)
   "Read a menu selection from the minibuffer using ALIST for options.
@@ -283,7 +300,7 @@
   (if (and (not (file-exists-p filename)) (file-writable-p filename))
     (progn (call-process "touch" nil nil nil filename) t)
     nil))
-
+  
 ;;
 ;; TAGS
 ;;
@@ -654,6 +671,8 @@
 ;;
 ;; GO!
 ;;
+
+(autoload 'gtd-add-calendar-event "gtd-calendar" "Add a calendar event" t)
 
 (defvar gtd-tag-prefix nil)
 (defvar gtd-tag-face 'gtd-tag-face "gtd-mode face used for context tags.")
