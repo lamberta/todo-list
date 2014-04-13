@@ -176,6 +176,13 @@
 ;; UTILS
 ;;
 
+(defun flatten-list (lst)
+  "Return the leaf elements of tree LST merged in a non-hierarchical list."
+  (cond
+    ((null lst) nil)
+    ((atom lst) (list lst))
+    (t (append (flatten-list (car lst)) (flatten-list (cdr lst))))))
+
 (defun assoc-all (key alist &optional append-p)
   "Return a list of all matching ALIST entries for KEY."
   (let ((entry-list (list)))
@@ -219,6 +226,14 @@
   (if default-choice
     (format "%s [%s] " label default-choice)
     (format "%s " label)))
+
+(defun gtd-read-string (prompt &optional default)
+  "Prompt user for string. Does not accept an empty value."
+  (let (str
+        (prompt (make-prompt prompt default)))
+    (while (null (valid-entry-p str))
+      (setq str (read-string prompt nil nil default)))
+    str))
 
 (defun gtd-completing-read (itemlist &optional prompt default-val)
   "Read a menu selection from the minibuffer using ALIST for options.
@@ -672,7 +687,7 @@
 ;; GO!
 ;;
 
-(autoload 'gtd-add-calendar-event "gtd-calendar" "Add a calendar event" t)
+(autoload 'gtd-calendar-add-event "gtd-calendar" "Add a calendar event" t)
 
 (defvar gtd-tag-prefix nil)
 (defvar gtd-tag-face 'gtd-tag-face "gtd-mode face used for context tags.")
