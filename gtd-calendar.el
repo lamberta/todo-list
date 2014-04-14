@@ -39,52 +39,64 @@
 ;; UI FLOW
 ;;
 
+
 (defun gtd-calendar-add-event (&optional cal-name title start end all-day-p description location)
   "Add a calendar event."
   (interactive)
-  ;;validate args
-  (unless (called-interactively-p 'interactive)
-    nil)
+  (let ((return-message
+          (catch 'exit-calendar-add-event
+            (progn
+              ;;validate args
+              (unless (called-interactively-p 'interactive)
+                nil)
 
-  (let ((event-times (gtd-read-event-time)))
-    (if event-times
-      (setq
-        start     (nth 0 event-times)
-        end       (nth 1 event-times)
-        all-day-p (nth 2 event-times))))
+              (let* ((first-input (gtd-read-string "Add Event:"))
+                     (first-input-parts (split-string first-input ";"))
+                     (multi-input-p (> (length first-input-parts) 1))) ;contains time/title
 
-  (setq cal-name (gtd-completing-read gtd-calendars "Calendar" (car gtd-calendars)))
+                ;;grab title
+                (setq title (trim-string (if multi-input-p
+                                           (second first-input-parts)
+                                           first-input)))
 
-  (list
-    cal-name
-    (format-time-string "%b %d %Y %I:%M %p" start)
-    (format-time-string "%b %d %Y %I:%M %p" end)
-    all-day-p))
+                ;;grab times, will confirm
+                (let ((event-times (if multi-input-p
+                                     (gtd-read-event-time (trim-string (first first-input-parts)))
+                                     (gtd-read-event-time))))
+                  (if (null event-times)
+                    (throw 'exit-calendar-add-event "Unable to read event time.")
+                    (setq
+                      start     (nth 0 event-times)
+                      end       (nth 1 event-times)
+                      all-day-p (nth 2 event-times)))))
+
+              ;;grab calendar
+              (setq cal-name (gtd-completing-read gtd-calendars "Calendar" (car gtd-calendars)))
+
+              ;;dispatch
+              (cond
+                (gtd-calendar-action
+                  (funcall #'gtd-calendar-action cal-name title start end all-day-p description location))
+                ((eq system-type 'darwin)
+                  (gtd-osx-default-calendar cal-name title start end all-day-p description location))
+                (t
+                  (throw 'exit-calendar-add-event "Not implemented on this system."))))
+            (progn
+              ;;success! or at least no errors thrown
+              (gtd-cal-on-add-event-success title cal-name start end)))))
+    (message return-message)))
 
 
-  ;; (let* ((cal-args
-  ;;          (apply #'gtd-cal-validate-args (if (called-interactively-p 'interactive)
-  ;;                                           (gtd-cal-prompt-args)
-  ;;                                           (list cal-name title start end all-day-p description location))))
-  ;;        (start-encoded (gtd-encode-time-string start))
-  ;;        (end-encoded (gtd-encode-time-string end))
-  ;;        (title-short (if (> (length title) 25)
-  ;;                       (concat (trim-string (substring title 0 22)) "...")
-  ;;                       title)))
-  ;;   cal-args))
-
-    ;;dispatch
-    ;; (if (cond
-    ;;    (gtd-calendar-action
-    ;;      (funcall #'gtd-calendar-action cal-name title start end all-day-p description location))
-    ;;    ((eq system-type 'darwin)
-    ;;      (gtd-osx-default-calendar cal-name title start-encoded end-encoded all-day-p description location))
-    ;;    (t
-    ;;      (message "Not implemented on this system.")
-    ;;      nil))
-    ;;   (progn
-    ;;  (message (format "Added '%s' to '%s' calendar." title-short cal-name))
-    ;;  t))))
+(defun gtd-cal-on-add-event-success (title cal-name start end)
+  "This function is run when an event is successfully added to the calendar.
+   Returns a string message that is displayed in the minibuffer.
+   Possibly add other system popup messages as well here."
+  (let ((start-str (format-time-string "%b %d %Y %I:%M %p" start))
+        (end-str (format-time-string "%b %d %Y %I:%M %p" end))
+        (title-short (if (> (length title) 25)
+                       (concat (trim-string (substring title 0 22)) "...")
+                       title)))
+    (format "Added event '%s' to %s, %s" title-short cal-name start-str)))
 
 
 ;;
@@ -96,11 +108,12 @@
    If provided, the string TIME-INPUT will get parsed
    instead of prompting the user for the initial input.
    Return list: (start-time end-time all-day-p)"
+  (assert (if time-input (stringp time-input) t))
   (cl-labels
     ((multi-prompt (prompt-list &optional callback last-try-p)
        ;;Reads user input, using a first try prompt and subsequent tries prompt.
        ;;Apply CALLBACK function to values to test input.
-       (let* ((prompt (if (not last-try-p) (first prompt-list) (second prompt-list)))
+       (let* ((prompt (if last-try-p (second prompt-list) (first prompt-list)))
               (val (gtd-read-string prompt)))
          (if (functionp callback) (setq val (funcall callback val)))
          (if (or val last-try-p)
@@ -109,6 +122,7 @@
 
       (parse-input-as-time (val)
         ;;For string VAL, if range return 2 times in list, or 1 time if not.
+        (assert (stringp val) t "parse-input-as-time val: %s" val)
         (let ((time-range (gtd-parse-time-range val)))
           (if (null time-range)
             (gtd-encode-time-string val)
@@ -132,35 +146,37 @@
 
     ;;Using function arg or user prompt, parse input string to time values.
     ;;Will be an encoded time, or if a range, a list of 2 encoded times.
-    (let (start-time end-time all-day-p)
-      (if time-input (assert (stringp time-input)))
-      (setq time-input (if time-input
-                         (parse-input-as-time time-input)
-                         (multi-prompt '("When?" "Sorry, didn't get that. When?") #'parse-input-as-time)))
+    (let (start-time end-time all-day-p time-parsed)
+      (setq time-parsed (if time-input
+                          (parse-input-as-time time-input)
+                          (multi-prompt '("When?" "Sorry, didn't get that. When?") #'parse-input-as-time)))
       (cond
         ;;got range
-        ((and (= (length (flatten-list time-input)) 4) (every #'numberp (flatten-list time-input)))
+        ((and (= (length (flatten-list time-parsed)) 4) (every #'numberp (flatten-list time-parsed)))
           (setq
-            start-time (first time-input)
-            end-time (second time-input))
+            start-time (first time-parsed)
+            end-time (second time-parsed))
           (setq all-day-p (check-all-day start-time end-time)))
 
         ;;got start time only
-        ((and (= (length time-input) 2) (every #'numberp time-input))
-          (setq start-time time-input)
+        ((and (= (length time-parsed) 2) (every #'numberp time-parsed))
+          (setq start-time time-parsed)
           (setq all-day-p (check-all-day start-time))
           ;;get end time
           (unless all-day-p
-            (setq time-input (multi-prompt '("End time:" "Sorry, didn't get that. When?") #'gtd-encode-time-string))
-            (when time-input
-              (setq end-time time-input)
+            (setq time-parsed (multi-prompt '("End time:" "Sorry, didn't get that. When?") #'gtd-encode-time-string))
+            (when time-parsed
+              (setq end-time time-parsed)
               (setq all-day-p (check-all-day end-time)))))
-        (t
-          (error "Invalid time input.")))
 
-      (if (yes-or-no-p (gtd-make-time-confirm-prompt start-time end-time all-day-p))
-        (list start-time end-time all-day-p)
-        (gtd-read-event-time)))))
+        ;;shouldn't get here, but whatever it is, it ain't right
+        (time-parsed
+          (setq time-parsed nil)))
+
+      (if time-parsed
+        (if (yes-or-no-p (gtd-make-time-confirm-prompt start-time end-time all-day-p))
+          (list start-time end-time all-day-p)
+          (gtd-read-event-time))))))
 
 
 (defun gtd-make-time-confirm-prompt (start-time end-time all-day-p)
@@ -259,7 +275,7 @@
                   (format "%s %s" (first time-list) (symbol-name period-sym))))))
     ;;greedy match times surrounding the range operator
     (assert (stringp time-string))
-    (setq time-string (gtd-replace-time-keywords time-string))
+    (setq time-string (gtd-replace-time-keywords time-string t))
     (let ((time-regexp "[^ ]+ ?+[apm\\.]?* ?+[-\\|to]\\b.*"))
       (when (string-match time-regexp time-string)
                ;;grab time chunk and split in two
@@ -415,13 +431,12 @@
   "Add an event to Calendar.app."
   (let* ((time-format "%b %d, %Y %I:%M %p")
          (start-osx (format-time-string time-format start-encoded))
-         (end-osx (format-time-string time-format end-encoded))
+         (end-osx (if end-encoded (format-time-string time-format end-encoded)))
          (cal-script (format-osx-event-script cal-name title start-osx end-osx all-day-p desc loc)))
     (assert (stringp start-osx))
     (assert (stringp cal-script))
     (start-process "osx-calendar-add-event" nil "/usr/bin/osascript" "-e" cal-script))
   t)
-
 
 (defvar gtd-calendar-script-osx "\
 %s
