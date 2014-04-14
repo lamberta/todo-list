@@ -165,7 +165,7 @@
 
 (defun gtd-make-time-confirm-prompt (start-time end-time all-day-p)
   "Generate a confirmation prompt for event time details."
-  (let (args (day-single "%b %d %Y") (day-time "%b %d %Y %I:%M %p"))
+  (let (args (day-single "%a, %b %d %Y") (day-time "%a, %b %d %Y %I:%M %p"))
     (if start-time
       (setq args (format-time-string
                    (if all-day-p day-single day-time)
@@ -259,6 +259,7 @@
                   (format "%s %s" (first time-list) (symbol-name period-sym))))))
     ;;greedy match times surrounding the range operator
     (assert (stringp time-string))
+    (setq time-string (gtd-replace-time-keywords time-string))
     (let ((time-regexp "[^ ]+ ?+[apm\\.]?* ?+[-\\|to]\\b.*"))
       (when (string-match time-regexp time-string)
                ;;grab time chunk and split in two
@@ -332,6 +333,25 @@
     (list time-string time-period-str time-period-sym)))
 
 
+(defun gtd-next-day-distance (day)
+  "The number of days to the next occuring DAY name, excluding today.
+   Returns 1-7, or NIL if DAY isn't matched."
+  (let ((today-val (string-to-number (format-time-string "%w" (current-time))))
+        (day-val (cond
+                   ((string-match "^su[n]?$\\|^sunday$" day) 0)
+                   ((string-match "^m$\\|^mo[n]?$\\|^monday$" day) 1)
+                   ((string-match "^tu$\\|^tue[s]?$\\|^tuesday$" day) 2)
+                   ((string-match "^w$\\|^we[d]?$\\|^wednesday$" day) 3)
+                   ((string-match "^th[u]?$\\|^thur[s]?$\\|^thursday$" day) 4)
+                   ((string-match "^f$\\|^fr[i]?$\\|^friday$" day) 5)
+                   ((string-match "^sa[t]?$\\|^saturday$" day) 6))))
+    (if day-val
+      (let ((dist (- day-val today-val)))
+        (if (< dist 1)
+          (+ dist 7)
+          dist)))))
+
+
 (defvar gtd-time-keywords
   '(("today"     . #'(lambda () (format-time-string "%b %d %Y" (current-time))))
     ("tomorrow"  . #'(lambda () (format-time-string "%b %d %Y" (time-add (current-time) (days-to-time 1)))))
@@ -342,22 +362,24 @@
     ("\\+\\([0-9]+\\)d" . #'(lambda (n) (format-time-string "%b %d %Y" (time-add (current-time) (days-to-time (string-to-number n))))))
     ("\\-\\([0-9]+\\)d" . #'(lambda (n) (format-time-string "%b %d %Y" (time-subtract (current-time) (days-to-time (string-to-number n))))))
     ("\\+\\([0-9]+\\)w" . #'(lambda (n) (format-time-string "%b %d %Y" (time-add (current-time) (days-to-time (* 7 (string-to-number n)))))))
-    ("\\-\\([0-9]+\\)w" . #'(lambda (n) (format-time-string "%b %d %Y" (time-subtract (current-time) (days-to-time (* 7 (string-to-number n))))))))
+    ("\\-\\([0-9]+\\)w" . #'(lambda (n) (format-time-string "%b %d %Y" (time-subtract (current-time) (days-to-time (* 7 (string-to-number n)))))))
+    ("\\b\\+\\([a-zA-Z]+\\)" . #'(lambda (day) (let ((n (gtd-next-day-distance day)))
+                                                 (if n (format-time-string "%b %d %Y" (time-add (current-time) (days-to-time n)))))))
+    ("\\b\\+\\+\\([a-zA-Z]+\\)" . #'(lambda (day) (let ((n (gtd-next-day-distance day)))
+                                                    (if n (format-time-string "%b %d %Y" (time-add (current-time) (days-to-time (+ 7 n))))))))
+    ("\\b\\+\\+\\+\\([a-zA-Z]+\\)" . #'(lambda (day) (let ((n (gtd-next-day-distance day)))
+                                                    (if n (format-time-string "%b %d %Y" (time-add (current-time) (days-to-time (+ 14 n)))))))))
   "Map string/regexp definitions to a replacement string or a function that returns a string.
    Matched regexp groups are passed to the replacement function as arguments.")
+
 
 (defvar gtd-stop-words '("a" "an" "and" "are" "as" "at" "be" "by" "for" "from" "has" "he" "in" "is" "it" "its" "of" "on" "that" "the" "to" "was" "were" "will" "with")
   "List of common stop words to remove from input.")
 
 
-(defun gtd-replace-time-keywords (time-string)
+(defun gtd-replace-time-keywords (time-string &optional keep-stopwords-p)
   "Replace keywords in TIME-STRING with their standard time definitions in `gtd-time-keywords'.
    And words contained in `gtd-stop-words' are filtered out."
-  ;;remove stopwords
-  (mapcar #'(lambda (word)
-              (setq time-string
-                (replace-regexp-in-string (concat "\\b\\(" word "\\)\\b") "" time-string)))
-    gtd-stop-words)
   ;;replace time words
   (dolist (new-def gtd-time-keywords)
     (if (string-match (car new-def) time-string)
@@ -369,13 +391,19 @@
           (add-to-list 'match-group-list (match-string i time-string))
           (setq i (1+ i)))
         ;;substitute word or apply function
-        (setq time-string
-          (replace-regexp-in-string
-            (car new-def)
-            (if (functionp replacement)
-              (apply replacement match-group-list)
-              replacement)
-            time-string)))))
+        (let ((replace-text (if (functionp replacement)
+                              (apply replacement match-group-list)
+                              replacement)))
+          (when replace-text
+            (assert (stringp replace-text))
+            (setq time-string (replace-regexp-in-string (car new-def) replace-text time-string)))))))
+  ;;remove stopwords
+  (unless keep-stopwords-p
+    (mapcar #'(lambda (word)
+                (setq time-string
+                  (replace-regexp-in-string (concat "\\b\\(" word "\\)\\b") "" time-string)))
+      gtd-stop-words))
+  ;;return
   time-string)
 
 
