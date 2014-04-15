@@ -45,10 +45,6 @@
   (let ((return-message
           (catch 'exit-calendar-add-event
             (progn
-              ;;validate args
-              (unless (called-interactively-p 'interactive)
-                nil)
-
               (let* ((first-input (gtd-read-string "Add Event:"))
                      (first-input-parts (split-string first-input ";"))
                      (multi-input-p (> (length first-input-parts) 1))) ;contains time/title
@@ -71,6 +67,12 @@
 
               ;;grab calendar
               (setq cal-name (gtd-completing-read gtd-calendars "Calendar" (car gtd-calendars)))
+
+              ;;validate args
+              (when (called-interactively-p 'interactive)
+                (let ((entry (gtd-entry-at-point)))
+                  (if (and entry (yes-or-no-p "Include entry in event description? "))
+                    (setq description entry))))
 
               ;;dispatch
               (cond
@@ -179,7 +181,7 @@
                        (setq time-parsed nil)))
 
                    ;;sanity check
-                   (if (time-less-p end-time start-time)
+                   (if (and end-time (time-less-p end-time start-time))
                      (if (yes-or-no-p (gtd-make-time-confirm-prompt "It ends before it begins! Re-enter?" start-time end-time all-day-p))
                        (throw 'retry-time-input nil)))
                    ;;confirm if we have something
@@ -450,10 +452,10 @@
 (defun gtd-osx-default-calendar (cal-name title start-encoded &optional end-encoded all-day-p desc loc)
   "Add an event to Calendar.app."
   (let* ((time-format "%b %d, %Y %I:%M %p")
-         (start-osx (format-time-string time-format start-encoded))
-         (end-osx (if end-encoded (format-time-string time-format end-encoded)))
-         (cal-script (gtd-format-osx-event-script cal-name title start-osx end-osx all-day-p desc loc)))
-    (assert (stringp start-osx))
+         (start (format-time-string time-format start-encoded))
+         (end (if end-encoded (format-time-string time-format end-encoded)))
+         (cal-script (gtd-format-osx-event-script cal-name title start end all-day-p desc loc)))
+    (assert (stringp start))
     (assert (stringp cal-script))
     (start-process "osx-calendar-add-event" nil "/usr/bin/osascript" "-e" cal-script))
   t)
@@ -464,20 +466,24 @@
   (format gtd-calendar-script-osx
     (gtd-format-date-vars start end)
     calendar
-    (gtd-format-event-props title all-day-p description location)))
+    (gtd-format-event-props title start end all-day-p description location)))
 
 
 (defun gtd-format-date-vars (start end)
   "Return an AppleScript statement for setting variables for the START and END date."
-  (format "set startDate to date \"%s\"\nset endDate to date \"%s\"" start end))
+  (assert (stringp start))
+  (let ((out-string (format "set startDate to date \"%s\"" start)))
+    (when end
+      (assert (stringp end))
+      (setq out-string (format "%s\nset endDate to date \"%s\"" out-string end)))
+    out-string))
 
 
-(defun gtd-format-event-props (title &optional all-day-p description location)
+(defun gtd-format-event-props (title &optional start end all-day-p description location)
   "Generates the AppleScript statements needed to substitute for the given function arguments."
-  (let ((opts-alist (list
-                      (cons "summary" (concat "\"" title "\""))
-                      (cons "start date" "startDate") ;var name, requires date object creation
-                      (cons "end date" "endDate"))))  ;var name
+  (let ((opts-alist (list (cons "summary" (concat "\"" title "\"")))))
+    (if start (add-to-list 'opts-alist (cons "start date" "startDate") t)) ;var name, requires date object creation
+    (if end (add-to-list 'opts-alist (cons "end date" "endDate") t))       ;var name
     (if all-day-p (add-to-list 'opts-alist (cons "allday event" "true") t))
     (if description (add-to-list 'opts-alist (cons "description" (concat "\"" description "\"")) t))
     (if location (add-to-list 'opts-alist (cons "location" (concat "\"" location "\"")) t))

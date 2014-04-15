@@ -116,7 +116,6 @@
 ;; * actions moved out of projects have project tag appended (add tag but check for existing. need tag data format?)
 ;; * jump to next-entry in file (more about selecting entry under empty line)
 ;; * resolve name confusion in source: label-tags => contexts
-;; * applescript command for adding entry to calendar
 ;; * context aware menu options: action/project/reference/defer/etc
 
 (defgroup gtd nil
@@ -380,7 +379,7 @@
       ((= (length tag-alist-selected) 0)
         nil)
       ((= (length tag-alist-selected) 1)
-        (setq tag-pair (first tag-alist-selected)))
+        (first tag-alist-selected))
       (t
         (let* ((prompt (format "Tag: %s, Which file?" tag))
                (file-alist (file-alist-for-tag-alist tag-alist-selected))
@@ -425,7 +424,7 @@
         (setq p2 (point))))
     (set-mark p1)))
 
-(defun entry-at-point ()
+(defun gtd-entry-at-point ()
   "Returns the current marked region or paragraph as a STRING.
    Removes leading characters defined in `gtd-entry-prefix'."
   (if (and (not (use-region-p))
@@ -435,9 +434,8 @@
     (let ((text (buffer-substring-no-properties (region-beginning) (region-end))))
       ;;remove leading empty line
       (setq text (replace-regexp-in-string "\\`[ \t\n]*" "" text))
-      ;;remove leading entry prefix. not needed?
-      ;(setq text (replace-regexp-in-string (concat "^\\" gtd-entry-prefix) "" text))
       text)))
+
 
 ;;
 ;; INSERTION
@@ -480,7 +478,7 @@
    By default, sending an entry doesn't follow it. If GOTO-P is T,
    open up the buffer and view at the insertion point."
   (interactive)
-  (let ((text (entry-at-point)))
+  (let ((text (gtd-entry-at-point)))
     (if text
       (let* ((action (if goto-p "Move" "Send"))
              (tag-pair (read-tag-from-minibuffer (concat action " to tag:") tag-alist))
@@ -528,7 +526,7 @@
   "Delete the selected entry from the current buffer.
    If `gtd-trash' is set, append the entry to that file."
   (interactive)
-  (let ((entry (entry-at-point)))
+  (let ((entry (gtd-entry-at-point)))
     (if (not entry)
       (progn
         (message "No entry selected.")
@@ -661,6 +659,7 @@
   (interactive)
   (gtd-send-to-label-in-file "next-actions" t))
 
+
 ;;
 ;; KEYBINDINGS
 ;;
@@ -668,7 +667,7 @@
 (defun gtd-display-keybindings ()
   "Print a quick summary of the GTD keybindings. Bound to: 'C-c ?'"
   (interactive)
-  (message "Commands: {g}oto, {m}ove, {s}end, {a|A}ction, {p|P}roject, {d}elete, {T}imestamp"))
+  (message "Commands: {g}oto, {m}ove, {s}end, {a|A}ction, {p|P}roject, {d}elete, {c}alendar, {T}imestamp"))
 
 (defvar gtd-mode-map (make-sparse-keymap))
 (define-key gtd-mode-map (kbd "C-c g") 'gtd-goto)
@@ -682,6 +681,8 @@
 (define-key gtd-mode-map (kbd "C-c <backspace>") 'gtd-delete)
 (define-key gtd-mode-map (kbd "C-c T") 'gtd-timestamp)
 (define-key gtd-mode-map (kbd "C-c ?") 'gtd-display-keybindings)
+(define-key gtd-mode-map (kbd "C-c c") 'gtd-calendar-add-event)
+
 
 ;;
 ;; GO!
