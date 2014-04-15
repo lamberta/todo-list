@@ -1,6 +1,9 @@
 ;;
 ;; Calendar Add Event
 ;;
+;;
+;; BUGS:
+;; * Parsing error on '+thu +6p
 
 (defcustom gtd-calendars nil
   "List of available calendars. This is used for prompting the user for a calendar selection, the first being the default."
@@ -146,40 +149,53 @@
 
     ;;Using function arg or user prompt, parse input string to time values.
     ;;Will be an encoded time, or if a range, a list of 2 encoded times.
-    (let (start-time end-time all-day-p time-parsed)
-      (setq time-parsed (if time-input
-                          (parse-input-as-time time-input)
-                          (multi-prompt '("When?" "Sorry, didn't get that. When?") #'parse-input-as-time)))
-      (cond
-        ;;got range
-        ((and (= (length (flatten-list time-parsed)) 4) (every #'numberp (flatten-list time-parsed)))
-          (setq
-            start-time (first time-parsed)
-            end-time (second time-parsed))
-          (setq all-day-p (check-all-day start-time end-time)))
+    (let (start-time end-time all-day-p time-parsed return-list)
+      ;;if thrown a nil, keep trying
+      (while (null
+               (catch 'retry-time-input
+                 (progn
+                   (setq time-parsed (if time-input
+                                       (parse-input-as-time time-input)
+                                       (multi-prompt '("When?" "Sorry, didn't get that. When?") #'parse-input-as-time)))
+                   ;;reset in case we go around again
+                   (setq time-input nil)
+                   (cond
+                     ;;got range
+                     ((and (= (length (flatten-list time-parsed)) 4) (every #'numberp (flatten-list time-parsed)))
+                       (setq
+                         start-time (first time-parsed)
+                         end-time (second time-parsed))
+                       (setq all-day-p (check-all-day start-time end-time)))
 
-        ;;got start time only
-        ((and (= (length time-parsed) 2) (every #'numberp time-parsed))
-          (setq start-time time-parsed)
-          (setq all-day-p (check-all-day start-time))
-          ;;get end time
-          (unless all-day-p
-            (setq time-parsed (multi-prompt '("End time:" "Sorry, didn't get that. When?") #'gtd-encode-time-string))
-            (when time-parsed
-              (setq end-time time-parsed)
-              (setq all-day-p (check-all-day end-time)))))
+                     ;;got start time only
+                     ((and (= (length time-parsed) 2) (every #'numberp time-parsed))
+                       (setq start-time time-parsed)
+                       (setq all-day-p (check-all-day start-time))
+                       ;;get end time
+                       (unless all-day-p
+                         (setq time-parsed (multi-prompt '("End time:" "Sorry, didn't get that. When?") #'gtd-encode-time-string))
+                         (when time-parsed
+                           (setq end-time time-parsed)
+                           (setq all-day-p (check-all-day end-time)))))
 
-        ;;shouldn't get here, but whatever it is, it ain't right
-        (time-parsed
-          (setq time-parsed nil)))
+                     ;;shouldn't get here, but whatever it is, it ain't right
+                     (time-parsed
+                       (setq time-parsed nil)))
 
-      (if time-parsed
-        (if (yes-or-no-p (gtd-make-time-confirm-prompt start-time end-time all-day-p))
-          (list start-time end-time all-day-p)
-          (gtd-read-event-time))))))
+                   ;;sanity check
+                   (if (time-less-p end-time start-time)
+                     (if (yes-or-no-p (gtd-make-time-confirm-prompt "It ends before it begins! Re-enter?" start-time end-time all-day-p))
+                       (throw 'retry-time-input nil)))
+                   ;;confirm if we have something
+                   (unless (yes-or-no-p (gtd-make-time-confirm-prompt "Correct?" start-time end-time all-day-p))
+                     (throw 'retry-time-input nil))
+                   ;;success
+                   (setq return-list (list start-time end-time all-day-p)))
+                 t)))
+      return-list)))
 
 
-(defun gtd-make-time-confirm-prompt (start-time end-time all-day-p)
+(defun gtd-make-time-confirm-prompt (prompt start-time end-time all-day-p)
   "Generate a confirmation prompt for event time details."
   (let (args (day-single "%a, %b %d %Y") (day-time "%a, %b %d %Y %I:%M %p"))
     (if start-time
@@ -193,7 +209,8 @@
     (if all-day-p
       (setq args (concat args ", all-day")))
     ;;and out
-    (format "Correct? [%s]" args)))
+    (format "%s [%s]" prompt args)))
+
 
 ;;
 ;; PARSE DATETIME
@@ -206,7 +223,7 @@
   ;;replace keywords and regex groups
   (setq time-string (gtd-replace-time-keywords time-string))
   ;;trim and squeeze whitespace
-  (setq time-string (trim-string (replace-regexp-in-string " +" " " time-string)))
+  (setq time-string (trim-string (replace-regexp-in-string "\\s-+" " " time-string)))
   ;;split time digits from time-period
   (let* ((time-period (gtd-split-time-period
                         (gtd-pad-minutes time-string)))
@@ -216,37 +233,31 @@
     ;;if time-list is full of nils, we got a problem
     (if (not (delq t (mapcar #'null time-list)))
       nil
-      ;;determine time period
-      (let* ((time-period
-               (gtd-split-time-period
-                 (gtd-pad-minutes time-string)))
-             (pm-p (eq 'PM (third time-period))))
-        ;;work our way through the time list elements,
-        ;;prefer ones explicitly set, but if not there, be smart about a default
-        (let* ((cur-time-list (butlast (parse-time-string (current-time-string)) 3))
-               (s (or (nth 0 time-list) 0))
-               (m (or (nth 1 time-list) 0))
-               (h (or (nth 2 time-list) 0))
-               (d (or (nth 3 time-list) (nth 3 cur-time-list)))
-                ;default to this month, unless day is less than today, then next month
-               (mon (or (nth 4 time-list)
-                      (let ((cur-d (nth 3 cur-time-list))
-                            (cur-mon (nth 4 cur-time-list)))
-                        (if (< d cur-d)
-                          (if (= cur-mon 12) 1 (1+ cur-mon))
-                          cur-mon))))
-                ;default to this year, unless mon is less that this one, then next year
-               (y (or (nth 5 time-list)
-                    (let ((cur-mon (nth 4 cur-time-list))
-                          (cur-y (nth 5 cur-time-list)))
-                      (if (< mon cur-mon)
-                        (1+ cur-y)
-                        cur-y)))))
-          (if pm-p
-            (cond
-              ((< h 11) (setq h (+ h 12)))
-              ((= h 12) (setq h 0))))
-      (encode-time s m h d mon y))))))
+      ;;work our way through the time list elements,
+      ;;prefer ones explicitly set, but if not there, be smart about a default
+      (let* ((cur-time-list (butlast (parse-time-string (current-time-string)) 3))
+             (s (or (nth 0 time-list) 0))
+             (m (or (nth 1 time-list) 0))
+             (h (or (nth 2 time-list) 0))
+             (d (or (nth 3 time-list) (nth 3 cur-time-list)))
+              ;default to this month, unless day is less than today, then next month
+              (mon (or (nth 4 time-list)
+                     (let ((cur-d (nth 3 cur-time-list))
+                           (cur-mon (nth 4 cur-time-list)))
+                       (if (< d cur-d)
+                         (if (= cur-mon 12) 1 (1+ cur-mon))
+                         cur-mon))))
+              ;default to this year, unless mon is less that this one, then next year
+              (y (or (nth 5 time-list)
+                   (let ((cur-mon (nth 4 cur-time-list))
+                         (cur-y (nth 5 cur-time-list)))
+                     (if (< mon cur-mon)
+                       (1+ cur-y)
+                       cur-y)))))
+        ;;account for pm
+        (if (and pm-p (< h 12))
+          (setq h (+ h 12)))
+        (encode-time s m h d mon y)))))
 
 
 ;; Step for parsing time range from input string:
@@ -310,19 +321,26 @@
               (gtd-encode-time-string (concat date-part " " time-2-str)))))))))
 
 
+;;this is a tricky function, especially when dates are included in the input.
 (defun gtd-pad-minutes (time-string)
   "Add empty minutes to time specified by only the hour, eg. 6p."
   (assert (stringp time-string))
   (cond
-    ((string-match "[0-9]:[0-9][0-9]" time-string)
+    ;;ignore if hh:mm already exists
+    ((string-match "[0-2]?[0-9]:[0-9][0-9]" time-string)
       nil)
-    ((string-match "^[01]?[0-9]$" (trim-string time-string))
+    ;;ignore a trailing solo number preceded by letter (month date)
+    ((string-match "[A-Za-z]\\s-*[0-2]?[0-9]$" (trim-string time-string))
+      nil)
+    ;;match other trailing solo number
+    ((string-match "\\s-*[0-2]?[0-9]$" (trim-string time-string))
       (setq time-string (concat time-string ":00")))
-    ((string-match "\\([01]?[0-9]\\) ?+[ap]" time-string)
+    ;;match numbers with time period and insert
+    ((string-match "\\([0-2]?[0-9]\\) ?+\\([ap].*\\)" time-string)
       (let* ((n (match-string 1 time-string))
-             (hr (concat n ":00")))
+             (hr (concat n ":00" (match-string 2 time-string))))
         (setq time-string (replace-regexp-in-string
-                            (match-string 1 time-string) hr time-string)))))
+                            (match-string 0 time-string) hr time-string)))))
   time-string)
 
 
