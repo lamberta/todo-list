@@ -1,9 +1,31 @@
+;; gtd-calendar.el
+;; Calendar integration for `gtd-mode', a minor-mode for Getting Things Done.
 ;;
-;; Calendar Add Event
+;; Copyright (C) 2014 Billy Lamberta
 ;;
+;; Author: Billy Lamberta <b@lamberta.org>
+;; Created: Apr 2014
+;; Updated: Apr 2014
+;; Keywords: todo, gtd, calendar
+;; $Revision: 0.1 $
+;;
+;; This file is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation; either version 3, or (at your option)
+;; any later version.
+;;
+;; This file is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with GNU Emacs; see the file COPYING.  If not, write to the
+;; Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 (defcustom gtd-calendars nil
-  "List of available calendars. This is used for prompting the user for a calendar selection, the first being the default."
+  "List of available calendars. Used for a calendar selection choices, the first being the default."
   :type 'list
   :group 'gtd-calendar)
 
@@ -13,35 +35,12 @@
   :group 'gtd-calendar)
 
 
-;; prompt input
-;; if input is title
-;;   set title from input
-;;   prompt time
-;;   if time is only date
-;;     set start-time
-;;     set all-day to true
-;;   else if time is range
-;;     parse range
-;;     set start-time, end-time from range
-;;   else
-;;     set start-time from time
-;;     prompt end-time
-;;     set end-time
-;;   fi
-;; else if input is title and time
-;;   parse sections
-;;   parse and set title from sections
-;;   parse time from sections
-;;   [check time as above]
-;; fi
-
 ;;
 ;; UI FLOW
 ;;
 
-
 (defun gtd-calendar-add-event (&optional cal-name title start end all-day-p description location)
-  "Add a calendar event."
+  "Add an event to the calendar."
   (interactive)
   (let ((return-message
           (catch 'exit-calendar-add-event
@@ -226,12 +225,12 @@
          (time-period (gtd-split-time-period
                         (gtd-pad-minutes time-string)))
          (pm-p (eq 'PM (third time-period))))
-    (condition-case err
+    (condition-case nil
       ;;hopefully by now the time string is ready for component parsing
       (setq time-list (butlast (parse-time-string (first time-period)) 3))
       ;;report error and the function returns nil.
       ;;will hold off on any automatic corrections.
-      ('parse-error
+      (parse-error
         (message (format "gtd-encode-time-string: Unable to parse '%s'" (first time-period)))))
     ;;if time-list is full of nils, we got a problem
     (if (not (delq t (mapcar #'null time-list)))
@@ -453,11 +452,47 @@
   (let* ((time-format "%b %d, %Y %I:%M %p")
          (start-osx (format-time-string time-format start-encoded))
          (end-osx (if end-encoded (format-time-string time-format end-encoded)))
-         (cal-script (format-osx-event-script cal-name title start-osx end-osx all-day-p desc loc)))
+         (cal-script (gtd-format-osx-event-script cal-name title start-osx end-osx all-day-p desc loc)))
     (assert (stringp start-osx))
     (assert (stringp cal-script))
     (start-process "osx-calendar-add-event" nil "/usr/bin/osascript" "-e" cal-script))
   t)
+
+
+(defun gtd-format-osx-event-script (calendar title start end &optional all-day-p description location)
+  "Returns the AppleScript program `gtd-calendar-script-osx' with variable substitution."
+  (format gtd-calendar-script-osx
+    (gtd-format-date-vars start end)
+    calendar
+    (gtd-format-event-props title all-day-p description location)))
+
+
+(defun gtd-format-date-vars (start end)
+  "Return an AppleScript statement for setting variables for the START and END date."
+  (format "set startDate to date \"%s\"\nset endDate to date \"%s\"" start end))
+
+
+(defun gtd-format-event-props (title &optional all-day-p description location)
+  "Generates the AppleScript statements needed to substitute for the given function arguments."
+  (let ((opts-alist (list
+                      (cons "summary" (concat "\"" title "\""))
+                      (cons "start date" "startDate") ;var name, requires date object creation
+                      (cons "end date" "endDate"))))  ;var name
+    (if all-day-p (add-to-list 'opts-alist (cons "allday event" "true") t))
+    (if description (add-to-list 'opts-alist (cons "description" (concat "\"" description "\"")) t))
+    (if location (add-to-list 'opts-alist (cons "location" (concat "\"" location "\"")) t))
+    (gtd-format-alist-to-obj opts-alist)))
+
+
+(defun gtd-format-alist-to-obj (alist)
+  "Iterates over ALIST properties and returns a string in AppleScript object format."
+  (let (outstr)
+    (dolist (prop alist)
+      (setq outstr (concat outstr ", " (car prop) ":" (cdr prop))))
+    (setq outstr (replace-regexp-in-string "^, " "" outstr))
+    (if outstr
+      (concat "{" outstr "}"))))
+
 
 (defvar gtd-calendar-script-osx "\
 %s
@@ -476,35 +511,5 @@ tell application \"System Events\" to tell application \"Calendar\"
 end tell
 if not isRunning then
   tell application \"Calendar\" to quit
-end if")
-
-
-(defun format-date-vars (start end)
-  (format "set startDate to date \"%s\"\nset endDate to date \"%s\"" start end))
-
-
-(defun format-osx-event-script (calendar title start end &optional all-day-p description location)
-  (format gtd-calendar-script-osx
-    (format-date-vars start end)
-    calendar
-    (format-event-props title all-day-p description location)))
-
-
-(defun format-alist-to-obj (alist)
-  (let (outstr)
-    (dolist (prop alist)
-      (setq outstr (concat outstr ", " (car prop) ":" (cdr prop))))
-    (setq outstr (replace-regexp-in-string "^, " "" outstr))
-    (if outstr
-      (concat "{" outstr "}"))))
-
-
-(defun format-event-props (title &optional all-day-p description location)
-  (let ((opts-alist (list
-                      (cons "summary" (concat "\"" title "\""))
-                      (cons "start date" "startDate") ;var name, requires date object creation
-                      (cons "end date" "endDate"))))  ;var name
-    (if all-day-p (add-to-list 'opts-alist (cons "allday event" "true") t))
-    (if description (add-to-list 'opts-alist (cons "description" (concat "\"" description "\"")) t))
-    (if location (add-to-list 'opts-alist (cons "location" (concat "\"" location "\"")) t))
-    (format-alist-to-obj opts-alist)))
+end if"
+  "The AppleScript code that interacts with Calendar.app.")
