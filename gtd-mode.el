@@ -397,11 +397,15 @@
   (if (null tag-alist) (setq tag-alist (make-tag-file-alist)))
   ;;returns a list of tags in case of multiple occurances
   ;;if only 1, use it, otherwise prompt for clarification
-  (let ((tag-alist-selected (completing-read-alist tag-alist prompt gtd-default-tag)))
+  (let* ((default-tag (if (assoc gtd-default-file tag-alist)
+                        gtd-default-file
+                        (car (first tag-alist))))
+         (tag-alist-selected (completing-read-alist tag-alist prompt default-tag)))
     (if tag-alist-selected
       (if (= (length tag-alist-selected) 1)
         (first tag-alist-selected)
         (select-tag (car (first tag-alist-selected)) tag-alist)))))
+
 
 ;;
 ;; SELECTION
@@ -458,8 +462,8 @@
 (defun insert-string-at-tag (text tag)
   "Insert the TEXT string beneath the given TAG within the current buffer.
    Return the buffer position where the text starts insertion."
-  (unless (and (stringp text) (stringp tag))
-    (error "Invalid arguments."))
+  (assert (stringp text))
+  (assert (stringp tag))
   (let (pos (tag-marker (format gtd-tag-format tag)))
     (save-excursion
       (goto-char (point-min))
@@ -503,6 +507,7 @@
                           (goto-char pos)))))))
             goto-p))))))
 
+
 (defun gtd-move (&optional tag-alist)
   "Move the current entry to the prompted tag and open the file."
   (interactive)
@@ -516,11 +521,12 @@
                      (cdr (rassoc filename gtd-file-alist))
                      (cdr (assoc filename gtd-file-alist))))
          (tag-alist (tag-list-from-file filepath t)))
-    (assert filepath)
-    (assert tag-alist)
+    (assert filepath nil "File not found: %s" filename)
+    (assert tag-alist nil "No tags found in file: %s" filename)
     (if filepath
       (gtd-send tag-alist goto-p)
       nil)))
+
 
 (defun gtd-delete ()
   "Delete the selected entry from the current buffer.
