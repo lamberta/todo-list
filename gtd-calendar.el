@@ -1,9 +1,6 @@
 ;;
 ;; Calendar Add Event
 ;;
-;;
-;; BUGS:
-;; * Parsing error on '+thu +6p
 
 (defcustom gtd-calendars nil
   "List of available calendars. This is used for prompting the user for a calendar selection, the first being the default."
@@ -225,11 +222,17 @@
   ;;trim and squeeze whitespace
   (setq time-string (trim-string (replace-regexp-in-string "\\s-+" " " time-string)))
   ;;split time digits from time-period
-  (let* ((time-period (gtd-split-time-period
+  (let* (time-list
+         (time-period (gtd-split-time-period
                         (gtd-pad-minutes time-string)))
-         (pm-p (eq 'PM (third time-period)))
-          ;;hopefully by now the time string is ready for component parsing
-         (time-list (butlast (parse-time-string (first time-period)) 3)))
+         (pm-p (eq 'PM (third time-period))))
+    (condition-case err
+      ;;hopefully by now the time string is ready for component parsing
+      (setq time-list (butlast (parse-time-string (first time-period)) 3))
+      ;;report error and the function returns nil.
+      ;;will hold off on any automatic corrections.
+      ('parse-error
+        (message (format "gtd-encode-time-string: Unable to parse '%s'" (first time-period)))))
     ;;if time-list is full of nils, we got a problem
     (if (not (delq t (mapcar #'null time-list)))
       nil
