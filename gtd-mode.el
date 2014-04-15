@@ -148,8 +148,9 @@
   :type 'string
   :group 'gtd)
 
-(defcustom gtd-tag-regexp "^@\\(\\w+\\)$"
-  "Regex to select and capture the normalized tag."
+(defcustom gtd-tag-regexp "^@\\([[:alnum:]-_+]+\\)$"
+  "Regex to select and capture the normalized tag.
+   Allowed characters here may need accounting for in `gtd-escape-tag'."
   :type 'regexp
   :group 'gtd)
 
@@ -277,6 +278,12 @@
                     (format "%s-%s" (car (rassoc (cdr pair) gtd-file-alist)) (car pair)))))
         (add-to-list 'new-alist (cons name (cdr pair)) t)))
     new-alist))
+
+(defun gtd-escape-tag (tag)
+  (let ((escaped-str tag))
+    (dolist (ch '("+" "-"))
+      (setq escaped-str (replace-regexp-in-string ch (concat "\\\\" ch) escaped-str)))
+    escaped-str))
 
 ;;
 ;; FILES
@@ -459,12 +466,13 @@
           (delete-trailing-whitespace)
           (format "\n"))))))
 
+
 (defun insert-string-at-tag (text tag)
   "Insert the TEXT string beneath the given TAG within the current buffer.
    Return the buffer position where the text starts insertion."
   (assert (stringp text))
   (assert (stringp tag))
-  (let (pos (tag-marker (format gtd-tag-format tag)))
+  (let (pos (tag-marker (format gtd-tag-format (gtd-escape-tag tag))))
     (save-excursion
       (goto-char (point-min))
       ;;position at the end of the tag marker
@@ -476,6 +484,7 @@
           (insert text)
           pos)
         nil))))
+
 
 (defun gtd-send (&optional tag-alist goto-p)
   "Send current entry to the prompted tag in its associated file.
@@ -598,7 +607,7 @@
           #'(lambda (err-msg)
               (if err-msg
                 (setq err err-msg)
-                (let ((tag-marker (format gtd-tag-format (car tag-pair))))
+                (let ((tag-marker (format gtd-tag-format (gtd-escape-tag (car tag-pair)))))
                   (goto-char (point-min))
                   (if (not (re-search-forward tag-marker nil t))
                     (setq err (format "Unable to find tag %s in file %s" (car tag-pair) (cdr tag-pair)))
