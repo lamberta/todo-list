@@ -676,6 +676,21 @@
 
 
 ;;
+;; MISC.
+;;
+
+(defun gtd-insert-timestamp-and-newline ()
+  "Inserts a timestamp and newline after an entry. Tries not to break timestamp on separate lines."
+  (interactive)
+  (let* ((timestamp (with-temp-buffer
+                      (gtd-timestamp)
+                      (buffer-string)))
+         (total-width (+ (current-column) (length timestamp))))
+    (if (< total-width fill-column)
+      (insert " " timestamp "\n")
+      (insert "\n" timestamp "\n"))))
+
+;;
 ;; KEYBINDINGS
 ;;
 
@@ -695,6 +710,7 @@
 (define-key gtd-mode-map (kbd "C-c d") 'gtd-delete)
 (define-key gtd-mode-map (kbd "C-c <backspace>") 'gtd-delete)
 (define-key gtd-mode-map (kbd "C-c T") 'gtd-timestamp)
+(define-key gtd-mode-map (kbd "C-<return>") 'gtd-insert-timestamp-and-newline)
 (define-key gtd-mode-map (kbd "C-c ?") 'gtd-display-keybindings)
 (define-key gtd-mode-map (kbd "C-c c") 'gtd-calendar-add-event)
 
@@ -734,7 +750,8 @@
   (imenu-add-to-menubar "Tags")
   ;;outline
   (setq gtd-tag-prefix (replace-regexp-in-string "%s.*" "" gtd-tag-format))
-  (setq-local outline-regexp (format "%s\\|%s.+" outline-regexp gtd-tag-prefix)))
+  ;;the shorter the match, the higher up the hierarchy. "^@\\|[*]+\\s-"
+  (setq-local outline-regexp (format "^%s\\|%s\\s-" gtd-tag-prefix outline-regexp)))
 
 (eval-after-load 'outline-minor
   (progn
