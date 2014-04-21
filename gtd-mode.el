@@ -376,6 +376,7 @@
           (add-to-list 'file-alist (cons shortname filepath)))))
     file-alist))
 
+
 (defun select-tag (tag &optional tag-alist)
   "Searches for TAG and returns a cons containing the tag name and
    its file. If tag appears in multiple files, prompt for clarification.
@@ -388,11 +389,16 @@
       ((= (length tag-alist-selected) 1)
         (first tag-alist-selected))
       (t
-        (let* ((prompt (format "Tag: %s, Which file?" tag))
+        ;;use default file if in the tag list, otherwise use first
+        (let* ((default-file (if (rassoc (cdr (assoc gtd-default-file gtd-file-alist)) tag-alist-selected)
+                               gtd-default-file
+                               (car (rassoc (cdr (first tag-alist-selected)) gtd-file-alist))))
+               (prompt (format "Tag: %s, Which file?" tag))
                (file-alist (file-alist-for-tag-alist tag-alist-selected))
-               (file-alist-selected (completing-read-alist file-alist prompt gtd-default-file)))
+               (file-alist-selected (completing-read-alist file-alist prompt default-file)))
           (if file-alist-selected
             (rassoc (cdr (first file-alist-selected)) tag-alist-selected)))))))
+
 
 (defun read-tag-from-minibuffer (&optional prompt tag-alist)
   "Return a cons cell containing the tag name and its file.
@@ -404,15 +410,14 @@
   (if (null tag-alist) (setq tag-alist (make-tag-file-alist)))
   ;;returns a list of tags in case of multiple occurances
   ;;if only 1, use it, otherwise prompt for clarification
-  (let* ((default-tag (if (assoc gtd-default-file tag-alist)
-                        gtd-default-file
+  (let* ((default-tag (if (assoc gtd-default-tag tag-alist)
+                        gtd-default-tag
                         (car (first tag-alist))))
          (tag-alist-selected (completing-read-alist tag-alist prompt default-tag)))
     (if tag-alist-selected
       (if (= (length tag-alist-selected) 1)
         (first tag-alist-selected)
-        (select-tag (car (first tag-alist-selected)) tag-alist)))))
-
+        (select-tag (car (first tag-alist-selected)) tag-alist-selected)))))
 
 ;;
 ;; SELECTION
@@ -688,7 +693,9 @@
          (total-width (+ (current-column) (length timestamp))))
     (if (< total-width fill-column)
       (insert " " timestamp "\n")
-      (insert "\n" timestamp "\n"))))
+      (insert "\n" timestamp "\n")))
+  (delete-trailing-whitespace)
+  (save-buffer))
 
 ;;
 ;; KEYBINDINGS
