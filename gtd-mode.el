@@ -128,6 +128,11 @@
   :type '(alist :key-type 'string :value-type 'file)
   :group 'gtd)
 
+(defcustom gtd-archive-file-alist nil
+  "Collection of shortnames and their corresponding file path to send entries for archival reference."
+  :type '(alist :key-type 'string :value-type 'file)
+  :group 'gtd)
+
 (defcustom gtd-default-file nil
   "Provide default file value to speed up minibuffer selection."
   :type 'string
@@ -315,6 +320,15 @@
         (insert-file-contents filepath)
         (funcall callback nil)))))
 
+(defun gtd-select-file (file-alist &optional prompt)
+  "Select a file from FILE-ALIST and return its full path.
+   Pass a string to customize PROMPT."
+  (let* ((file-selected (first (completing-read-alist file-alist prompt (car (first file-alist)))))
+         (filepath (if file-selected (expand-file-name (cdr file-selected)))))
+    (assert file-selected)
+    (assert (file-writable-p filepath))
+    filepath))
+
 (defun file-touch (filename)
   "Use the touch shell command to create an empty file."
   (setq filename (expand-file-name filename))
@@ -352,6 +366,7 @@
   "Return T or NIL if FILENAME contains TAG."
   (if (member-ignore-case tag (tag-list-from-file filename)) t nil))
 
+
 (defun make-tag-file-alist ()
   "Return an ALIST of all tags and their corresponding files."
   (let ((tag-alist (list)))
@@ -361,6 +376,7 @@
                                (tag-list-from-file filename))))
       (setq tag-alist (append tag-alist file-tag-alist))))
     tag-alist))
+
 
 (defun file-alist-for-tag-alist (tag-alist)
   "Given a TAG-ALIST containing a cons of a tag name and file path,
@@ -542,6 +558,29 @@
       nil)))
 
 
+(defun gtd-append-entry-to-file (file-alist &optional prompt goto-p)
+  "Append the current entry to the end of the selected file from FILE-ALIST.
+   If GOTO-P is T, open the buffer and view at the insertion point."
+  (let ((entry (gtd-entry-at-point))
+        (filepath (gtd-select-file file-alist prompt)))
+    (when (and entry filepath)
+      ;;kill entry in old file
+      (kill-region (region-beginning) (region-end))
+      (delete-blank-lines)
+      ;;insert entry in new file
+      (with-file filepath
+        #'(lambda (err-msg)
+            (if err-msg (error err-msg))
+            (end-of-buffer)
+            (insert (eof-pad))
+            (save-excursion
+              (insert entry))
+            (save-buffer)
+            (if goto-p
+              (switch-to-buffer (current-buffer))))
+        goto-p))))
+
+
 (defun gtd-delete ()
   "Delete the selected entry from the current buffer.
    If `gtd-trash' is set, append the entry to that file."
@@ -596,6 +635,7 @@
     (if (file-exists-p filepath)
       (progn (switch-to-buffer (find-file-noselect filepath)) t)
       (progn (message "Unable to read file: %s" filepath) nil))))
+
 
 (defun gtd-goto-tag (&optional tag tag-alist)
   "Open the file buffer and position where TAG is located."
@@ -659,6 +699,17 @@
 ;; Convenience shortcuts for now, until I figure out a better config abstraction.
 ;;
 
+(defun gtd-send-to-archive ()
+  "Send the current entry to a file selected from `gtd-archive-file-alist'."
+  (interactive)
+  (gtd-append-entry-to-file gtd-archive-file-alist "Archive file:"))
+
+(defun gtd-move-to-archive ()
+  "Move the current entry to a file selected from `gtd-archive-file-alist'.
+   Open the file buffer at the insertion point."
+  (interactive)
+  (gtd-append-entry-to-file gtd-archive-file-alist "Archive file:" t))
+
 (defun gtd-send-to-project ()
   "Send the current entry to the project label in the [projects] file."
   (interactive)
@@ -704,14 +755,16 @@
 (defun gtd-display-keybindings ()
   "Print a quick summary of the GTD keybindings. Bound to: 'C-c ?'"
   (interactive)
-  (message "Commands: {g}oto, {m}ove, {s}end, {a|A}ction, {p|P}roject, {d}elete, {c}alendar, {T}imestamp"))
+  (message "Commands: {g}oto, {m}ove, {s}end, {a|A}rchive, {n|N}ext-action, {p|P}roject, {d}elete, {c}alendar, {T}imestamp"))
 
 (defvar gtd-mode-map (make-sparse-keymap))
 (define-key gtd-mode-map (kbd "C-c g") 'gtd-goto)
 (define-key gtd-mode-map (kbd "C-c m") 'gtd-move)
 (define-key gtd-mode-map (kbd "C-c s") 'gtd-send)
-(define-key gtd-mode-map (kbd "C-c a") 'gtd-send-to-action)
-(define-key gtd-mode-map (kbd "C-c A") 'gtd-move-to-action)
+(define-key gtd-mode-map (kbd "C-c a") 'gtd-send-to-archive)
+(define-key gtd-mode-map (kbd "C-c A") 'gtd-move-to-archive)
+(define-key gtd-mode-map (kbd "C-c n") 'gtd-send-to-action)
+(define-key gtd-mode-map (kbd "C-c N") 'gtd-move-to-action)
 (define-key gtd-mode-map (kbd "C-c p") 'gtd-send-to-project)
 (define-key gtd-mode-map (kbd "C-c P") 'gtd-move-to-project)
 (define-key gtd-mode-map (kbd "C-c d") 'gtd-delete)
