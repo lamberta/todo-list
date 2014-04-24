@@ -335,7 +335,29 @@
   (if (and (not (file-exists-p filename)) (file-writable-p filename))
     (progn (call-process "touch" nil nil nil filename) t)
     nil))
-  
+
+(defun gtd-concatenate-file (dest-file src-file &optional clear-src-file-p)
+  "Append the contents of SRC-FILE to the end of DEST-FILE. If CLEAR-SRC-FILE-P is T,
+   clear SRC-FILE contents but keep the file. Return T on success, otherwise NIL.
+   This function is useful for merging inbox files."
+  (let (success-p)
+    (with-current-buffer (find-file-noselect dest-file)
+      (end-of-buffer)
+      (insert (eof-pad))
+      ;;leave cursor at insertion point
+      (save-excursion
+        ;;on success, second list item is length of data inserted
+        (setq success-p (> (second (insert-file-contents src-file)) 0)))
+      (delete-trailing-whitespace))
+    ;;empty contents of src-file
+    (if (and success-p clear-src-file-p)
+      (with-current-buffer (find-file-noselect src-file)
+        (mark-whole-buffer)
+        (kill-region (region-beginning) (region-end))
+        (save-buffer)
+        (kill-buffer)))
+    success-p))
+
 ;;
 ;; TAGS
 ;;
