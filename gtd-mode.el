@@ -778,8 +778,10 @@
 (defvar gtd-view-open-p nil)
 (defvar gtd-win-config nil)
 
-(defun gtd-view-toggle ()
-  "Open/close a split-pane view of the project and action files in `gtd-view-file-alist'."
+(defun gtd-view-toggle (&optional horizontal-p)
+  "Open/close a split-pane view of the project and action files in
+   `gtd-view-file-alist'. Default to vertical split, if HORIZONTAL-P
+    is T, split windows horizontally."
   (interactive)
   (if (null gtd-view-file-alist)
     (message "Must set files in `gtd-view-file-alist' to view.")
@@ -802,7 +804,9 @@
           (dolist (fp gtd-view-file-alist)
             (find-file (car fp))
             (when (cdr fp)
-              (split-window-below (cdr fp))
+              (if horizontal-p
+                (split-window-right (cdr fp))
+                (split-window-below (cdr fp)))
               (other-window 1)))
           (select-window win))))))
 
