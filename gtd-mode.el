@@ -133,6 +133,11 @@
   :type '(alist :key-type 'string :value-type 'file)
   :group 'gtd)
 
+(defcustom gtd-view-file-alist nil
+  "Files to open when `gtd-toggle-view' is called. A file-path and integer argument to pass to `split-window'."
+  :type '(alist :key-type 'file :value-type 'integer)
+  :group 'gtd)
+
 (defcustom gtd-default-file nil
   "Provide default file value to speed up minibuffer selection."
   :type 'string
@@ -320,10 +325,10 @@
         (insert-file-contents filepath)
         (funcall callback nil)))))
 
-(defun gtd-select-file (file-alist &optional prompt)
+(defun gtd-select-file (file-alist &optional prompt default-val)
   "Select a file from FILE-ALIST and return its full path.
    Pass a string to customize PROMPT."
-  (let* ((file-selected (first (completing-read-alist file-alist prompt (car (first file-alist)))))
+  (let* ((file-selected (first (completing-read-alist file-alist prompt default-val)))
          (filepath (if file-selected (expand-file-name (cdr file-selected)))))
     (assert file-selected)
     (assert (file-writable-p filepath))
@@ -724,13 +729,13 @@
 (defun gtd-send-to-archive ()
   "Send the current entry to a file selected from `gtd-archive-file-alist'."
   (interactive)
-  (gtd-append-entry-to-file gtd-archive-file-alist "Archive file:"))
+  (gtd-append-entry-to-file gtd-archive-file-alist "Send to archive:"))
 
 (defun gtd-move-to-archive ()
   "Move the current entry to a file selected from `gtd-archive-file-alist'.
    Open the file buffer at the insertion point."
   (interactive)
-  (gtd-append-entry-to-file gtd-archive-file-alist "Archive file:" t))
+  (gtd-append-entry-to-file gtd-archive-file-alist "Move to archive:" t))
 
 (defun gtd-send-to-project ()
   "Send the current entry to the project label in the [projects] file."
@@ -769,6 +774,37 @@
       (insert "\n" timestamp "\n")))
   (delete-trailing-whitespace)
   (save-buffer))
+
+(defvar gtd-view-open-p nil)
+(defvar gtd-win-config nil)
+
+(defun gtd-view-toggle ()
+  "Open/close a split-pane view of the project and action files in `gtd-view-file-alist'."
+  (interactive)
+  (if (null gtd-view-file-alist)
+    (message "Must set files in `gtd-view-file-alist' to view.")
+    (if gtd-view-open-p
+      (progn
+        (setq gtd-view-open-p nil)
+        ;;reset old window config
+        (if gtd-win-config
+          (set-window-configuration gtd-win-config))
+        ;;kill buffers
+        (dolist (fp gtd-view-file-alist)
+          (kill-buffer (get-file-buffer (car fp)))))
+      (progn
+        (setq
+          gtd-view-open-p t
+          gtd-win-config (current-window-configuration))
+        (delete-other-windows)
+        (let ((win (get-buffer-window)))
+          ;;open file in new window, return to first
+          (dolist (fp gtd-view-file-alist)
+            (find-file (car fp))
+            (when (cdr fp)
+              (split-window-below (cdr fp))
+              (other-window 1)))
+          (select-window win))))))
 
 ;;
 ;; KEYBINDINGS
