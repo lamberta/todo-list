@@ -117,6 +117,8 @@
 ;; * jump to next-entry in file (more about selecting entry under empty line)
 ;; * resolve name confusion in source: label-tags => contexts
 ;; * context aware menu options: action/project/reference/defer/etc
+(require 'cl-lib)
+(require 'outline)
 
 (defgroup gtd nil
   "Support for Getting Things Done."
@@ -315,7 +317,7 @@
           (if (and (not is-open-p) (not keep-open-p))
             (kill-buffer)))))))
 
-(defun with-temp-file (filename callback)
+(defun gtd-with-temp-file (filename callback)
   "Open FILENAME into a new temp buffer where the CALLBACK function is executed.
    Used for processing the contents of a file, not visiting and editing it."
   (let ((filepath (expand-file-name filename)))
@@ -328,10 +330,10 @@
 (defun gtd-select-file (file-alist &optional prompt default-val)
   "Select a file from FILE-ALIST and return its full path.
    Pass a string to customize PROMPT."
-  (let* ((file-selected (first (completing-read-alist file-alist prompt default-val)))
+  (let* ((file-selected (cl-first (completing-read-alist file-alist prompt default-val)))
          (filepath (if file-selected (expand-file-name (cdr file-selected)))))
-    (assert file-selected)
-    (assert (file-writable-p filepath))
+    (cl-assert file-selected)
+    (cl-assert (file-writable-p filepath))
     filepath))
 
 (defun file-touch (filename)
@@ -347,12 +349,12 @@
    This function is useful for merging inbox files."
   (let (success-p)
     (with-current-buffer (find-file-noselect dest-file)
-      (end-of-buffer)
+      (goto-char (point-max))
       (insert (eof-pad))
       ;;leave cursor at insertion point
       (save-excursion
         ;;on success, second list item is length of data inserted
-        (setq success-p (> (second (insert-file-contents src-file)) 0)))
+        (setq success-p (> (cl-second (insert-file-contents src-file)) 0)))
       (delete-trailing-whitespace))
     ;;empty contents of src-file
     (if (and success-p clear-src-file-p)
@@ -372,7 +374,7 @@
    duplicates. If ALIST-P is T, create an alist using the tag
    as key and FILENAME for each value."
   (let ((tag-list (list)))
-    (with-temp-file filename
+    (gtd-with-temp-file filename
       #'(lambda (err-msg)
           (if err-msg
             (error err-msg)
@@ -409,7 +411,7 @@
   "Given a TAG-ALIST containing a cons of a tag name and file path,
    return a file alist with the files they appear in."
   (let ((file-alist (list))
-        (tag (car (first tag-alist))))
+        (tag (car (cl-first tag-alist))))
     (dolist (tag-pair tag-alist)
       (unless (string= tag (car tag-pair))
         (error "Does not support mixed tag names."))
@@ -430,17 +432,17 @@
       ((= (length tag-alist-selected) 0)
         nil)
       ((= (length tag-alist-selected) 1)
-        (first tag-alist-selected))
+        (cl-first tag-alist-selected))
       (t
         ;;use default file if in the tag list, otherwise use first
         (let* ((default-file (if (rassoc (cdr (assoc gtd-default-file gtd-file-alist)) tag-alist-selected)
                                gtd-default-file
-                               (car (rassoc (cdr (first tag-alist-selected)) gtd-file-alist))))
+                               (car (rassoc (cdr (cl-first tag-alist-selected)) gtd-file-alist))))
                (prompt (format "Tag: %s, Which file?" tag))
                (file-alist (file-alist-for-tag-alist tag-alist-selected))
                (file-alist-selected (completing-read-alist file-alist prompt default-file)))
           (if file-alist-selected
-            (rassoc (cdr (first file-alist-selected)) tag-alist-selected)))))))
+            (rassoc (cdr (cl-first file-alist-selected)) tag-alist-selected)))))))
 
 
 (defun read-tag-from-minibuffer (&optional prompt tag-alist)
@@ -455,12 +457,12 @@
   ;;if only 1, use it, otherwise prompt for clarification
   (let* ((default-tag (if (assoc gtd-default-tag tag-alist)
                         gtd-default-tag
-                        (car (first tag-alist))))
+                        (car (cl-first tag-alist))))
          (tag-alist-selected (completing-read-alist tag-alist prompt default-tag)))
     (if tag-alist-selected
       (if (= (length tag-alist-selected) 1)
-        (first tag-alist-selected)
-        (select-tag (car (first tag-alist-selected)) tag-alist-selected)))))
+        (cl-first tag-alist-selected)
+        (select-tag (car (cl-first tag-alist-selected)) tag-alist-selected)))))
 
 ;;
 ;; SELECTION
@@ -504,7 +506,7 @@
   "Return a STRING with end-of-file whitespace needed for adding a new entry
    in the current buffer. Deletes trailing whitespace if needed."
   (save-excursion
-    (end-of-buffer)
+    (goto-char (point-max))
     (let ((char (char-before)))
       (cond
         ((null char) "")
@@ -518,8 +520,8 @@
 (defun insert-string-at-tag (text tag)
   "Insert the TEXT string beneath the given TAG within the current buffer.
    Return the buffer position where the text starts insertion."
-  (assert (stringp text))
-  (assert (stringp tag))
+  (cl-assert (stringp text))
+  (cl-assert (stringp tag))
   (let (pos (tag-marker (format gtd-tag-format (gtd-escape-tag tag))))
     (save-excursion
       (goto-char (point-min))
@@ -544,7 +546,7 @@
       (let* ((action (if goto-p "Move" "Send"))
              (tag-pair (read-tag-from-minibuffer (concat action " to tag:") tag-alist))
              (filepath (if tag-pair (expand-file-name (cdr tag-pair)))))
-        (assert tag-pair)
+        (cl-assert tag-pair)
         (when (and filepath (file-writable-p filepath))
           ;;kill selection
           (kill-region (region-beginning) (region-end))
@@ -578,8 +580,8 @@
                      (cdr (rassoc filename gtd-file-alist))
                      (cdr (assoc filename gtd-file-alist))))
          (tag-alist (tag-list-from-file filepath t)))
-    (assert filepath nil "File not found: %s" filename)
-    (assert tag-alist nil "No tags found in file: %s" filename)
+    (cl-assert filepath nil "File not found: %s" filename)
+    (cl-assert tag-alist nil "No tags found in file: %s" filename)
     (if filepath
       (gtd-send tag-alist goto-p)
       nil)))
@@ -598,7 +600,7 @@
       (with-file filepath
         #'(lambda (err-msg)
             (if err-msg (error err-msg))
-            (end-of-buffer)
+            (goto-char (point-max))
             (insert (eof-pad))
             (save-excursion
               (insert entry))
@@ -628,7 +630,7 @@
                 (if err-msg
                   (message err-msg)
                   (progn
-                    (end-of-buffer)
+                    (goto-char (point-max))
                     (insert (eof-pad) entry)
                     (save-buffer)
                     (setq sent-to-trash-p t))))))
@@ -656,7 +658,7 @@
         (setq filepath filename))
       (t
         (let ((file-alist (completing-read-alist gtd-file-alist "Go to file:" gtd-default-file)))
-          (setq filepath (cdr (first file-alist))))))
+          (setq filepath (cdr (cl-first file-alist))))))
     (if filepath
       (setq filepath (expand-file-name filepath)))
     (if (file-exists-p filepath)
@@ -709,11 +711,11 @@
       ((null selected-alist)
         (message "Nothing selected."))
       ((= (length selected-alist) 1)
-        (setq selected-pair (first selected-alist)))
+        (setq selected-pair (cl-first selected-alist)))
       (t
         (let* ((menu-alist (distinct-alist selected-alist))
-                (menu-selected-pair (first (completing-read-alist menu-alist "File or tag?")))
-                (idx (position menu-selected-pair menu-alist :test #'equal)))
+                (menu-selected-pair (cl-first (completing-read-alist menu-alist "File or tag?")))
+                (idx (cl-position menu-selected-pair menu-alist :test #'equal)))
           (setq selected-pair (elt selected-alist idx)))))
     (if (null selected-pair)
       nil
