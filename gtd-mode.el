@@ -780,10 +780,10 @@
 (defvar gtd-view-open-p nil)
 (defvar gtd-win-config nil)
 
-(defun gtd-view-toggle (&optional horizontal-p)
+(defun gtd-view-toggle (&optional keep-windows-p horizontal-p)
   "Open/close a split-pane view of the project and action files in
-   `gtd-view-file-alist'. Default to vertical split, if HORIZONTAL-P
-    is T, split windows horizontally."
+   `gtd-view-file-alist'. Will remove open windows unless KEEP-WINDOWS-P is T.
+   Default to vertical split, if HORIZONTAL-P is T, split windows horizontally."
   (interactive)
   (if (null gtd-view-file-alist)
     (message "Must set files in `gtd-view-file-alist' to view.")
@@ -800,7 +800,8 @@
         (setq
           gtd-view-open-p t
           gtd-win-config (current-window-configuration))
-        (delete-other-windows)
+        (unless keep-windows-p
+          (delete-other-windows))
         (let ((win (get-buffer-window)))
           ;;open file in new window, return to first
           (dolist (fp gtd-view-file-alist)
