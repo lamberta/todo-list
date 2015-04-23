@@ -816,13 +816,16 @@
               (find-file filename)
               (previous-multiframe-window))))
         ;;open each file in new window, then return to first
-        (let ((win (get-buffer-window)))
+        (let ((win (get-buffer-window))
+              (default-split-size (if horizontal-p
+                                    (/ (window-total-width) (length gtd-view-file-alist))
+                                    (/ (window-total-height) (length gtd-view-file-alist)))))
           (dolist (fp gtd-view-file-alist)
             (find-file (car fp))
             (when (cdr fp)
               (if horizontal-p
-                (split-window-right (cdr fp)) ;with size
-                (split-window-below (cdr fp)))
+                (split-window-right default-split-size) ;no custom value now
+                (split-window-below (cdr fp))) ;size specified in setup
               (other-window 1)))
           (select-window win))))))
 
