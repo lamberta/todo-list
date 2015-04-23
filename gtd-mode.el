@@ -5,7 +5,7 @@
 ;;
 ;; Author: Billy Lamberta <b@lamberta.org>
 ;; Created: Apr 2014
-;; Updated: Apr 2014
+;; Updated: Apr 2015
 ;; Keywords: todo, gtd
 ;; $Revision: 0.1 $
 ;;
@@ -780,10 +780,11 @@
 (defvar gtd-view-open-p nil)
 (defvar gtd-win-config nil)
 
-(defun gtd-view-toggle (&optional keep-windows-p horizontal-p)
+(defun gtd-view-toggle (&optional horizontal-p use-current-window-p filename)
   "Open/close a split-pane view of the project and action files in
-   `gtd-view-file-alist'. Will remove open windows unless KEEP-WINDOWS-P is T.
-   Default to vertical split, if HORIZONTAL-P is T, split windows horizontally."
+   `gtd-view-file-alist'. Default to vertical split, if HORIZONTAL-P is T,
+   split windows horizontally. Will remove open windows unless USE-CURRENT-WINDOW-P is T.
+   If FILENAME is set, split and open the file in the big window."
   (interactive)
   (if (null gtd-view-file-alist)
     (message "Must set files in `gtd-view-file-alist' to view.")
@@ -800,15 +801,27 @@
         (setq
           gtd-view-open-p t
           gtd-win-config (current-window-configuration))
-        (unless keep-windows-p
+        ;;open panes in fresh configuration vs within existing window
+        (unless use-current-window-p
           (delete-other-windows))
+        ;;split and open specified file in big window then jump back
+        (if filename
+          (if (not (file-exists-p filename))
+            (message "Unable to find file: %s" filename)
+            (progn
+              (if horizontal-p
+                (split-window-vertically)
+                (split-window-horizontally))
+              (other-window 1)
+              (find-file filename)
+              (previous-multiframe-window))))
+        ;;open each file in new window, then return to first
         (let ((win (get-buffer-window)))
-          ;;open file in new window, return to first
           (dolist (fp gtd-view-file-alist)
             (find-file (car fp))
             (when (cdr fp)
               (if horizontal-p
-                (split-window-right (cdr fp))
+                (split-window-right (cdr fp)) ;with size
                 (split-window-below (cdr fp)))
               (other-window 1)))
           (select-window win))))))
