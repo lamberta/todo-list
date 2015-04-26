@@ -779,6 +779,7 @@
 
 (defvar gtd-view-open-p nil)
 (defvar gtd-win-config nil)
+(defvar gtd-open-file-buffer nil)
 
 (defun gtd-view-toggle (&optional horizontal-p use-current-window-p filename)
   "Open/close a split-pane view of the project and action files in
@@ -790,13 +791,17 @@
     (message "Must set files in `gtd-view-file-alist' to view.")
     (if gtd-view-open-p
       (progn
+        ;;close em down
         (setq gtd-view-open-p nil)
         ;;reset old window config
         (if gtd-win-config
           (set-window-configuration gtd-win-config))
         ;;kill buffers
         (dolist (fp gtd-view-file-alist)
-          (kill-buffer (get-file-buffer (car fp)))))
+          (kill-buffer (get-file-buffer (car fp))))
+        (when gtd-open-file-buffer
+          (kill-buffer gtd-open-file-buffer)
+          (setq gtd-open-file-buffer nil)))
       (progn
         (setq
           gtd-view-open-p t
@@ -814,6 +819,7 @@
                 (split-window-horizontally))
               (other-window 1)
               (find-file filename)
+              (setq gtd-open-file-buffer (get-file-buffer filename))
               (previous-multiframe-window))))
         ;;open each file in new window, then return to first
         (let ((win (get-buffer-window))
