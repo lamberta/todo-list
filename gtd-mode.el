@@ -166,6 +166,12 @@
   :type 'regexp
   :group 'gtd)
 
+(defcustom gtd-hashtag-regexp "\\B#\\([[:alnum:]-_+]+\\)"
+  "Regex to select and capture the normalized hashtag.
+   Allowed characters here may need accounting for in `gtd-escape-tag'."
+  :type 'regexp
+  :group 'gtd)
+
 ;;
 ;; COLOR HIGHLIGHTS
 ;;
@@ -175,6 +181,13 @@
   (((class color) (background light)) (:foreground "Red3"))
   (t (:bold t :italic t)))
   "gtd-mode face used for context labels."
+  :group 'gtd)
+
+(defface gtd-hashtag-face '(
+  (((class color) (background dark))  (:foreground "LightGoldenrod2"))
+  (((class color) (background light)) (:foreground "LightGoldenrod4"))
+  (t (:bold t :italic t)))
+  "gtd-mode face used for hashtags."
   :group 'gtd)
 
 (defface gtd-subdue-face '(
@@ -870,6 +883,7 @@
 
 (defvar gtd-tag-prefix nil)
 (defvar gtd-tag-face 'gtd-tag-face "gtd-mode face used for context tags.")
+(defvar gtd-hashtag-face 'gtd-hashtag-face "gtd-mode face used for hashtags.")
 (defvar gtd-subdue-face 'gtd-subdue-face "gtd-mode face used for subdued text.")
 
 (define-minor-mode gtd-mode
@@ -887,6 +901,7 @@
     (font-lock-add-keywords nil
       (list
         (list gtd-tag-regexp 0 gtd-tag-face t)
+        (list gtd-hashtag-regexp 0 gtd-hashtag-face t)
         '("<.*>" 0 gtd-subdue-face t)
         (list link-def 1 gtd-subdue-face t) ;front bracket
         (list link-def 3 gtd-subdue-face t) ;end of tags
