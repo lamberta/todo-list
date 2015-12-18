@@ -902,9 +902,10 @@
       (list
         (list gtd-tag-regexp 0 gtd-tag-face t)
         (list gtd-hashtag-regexp 0 gtd-hashtag-face t)
-        '("<.*>" 0 gtd-subdue-face t)
-        (list link-def 1 gtd-subdue-face t) ;front bracket
-        (list link-def 3 gtd-subdue-face t) ;end of tags
+        '("<.*>" 0 gtd-subdue-face t)         ;use brackets for comments
+        '("-\\*-.*-\\*-" 0 gtd-subdue-face t) ;file vars
+        (list link-def 1 gtd-subdue-face t)   ;front bracket
+        (list link-def 3 gtd-subdue-face t)   ;end of tags
         (list link-desc 0 gtd-subdue-face t))))
   ;;imenu
   (add-to-list 'imenu-generic-expression (list nil gtd-tag-regexp 1))
