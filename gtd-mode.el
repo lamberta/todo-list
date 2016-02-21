@@ -177,21 +177,21 @@
 ;;
 
 (defface gtd-tag-face '(
-  (((class color) (background dark))  (:foreground "IndianRed1"))
+  (((class color) (background dark))  (:foreground "#DFAF8F")) ;zenburn-orange
   (((class color) (background light)) (:foreground "Red3"))
   (t (:bold t :italic t)))
   "gtd-mode face used for context labels."
   :group 'gtd)
 
 (defface gtd-hashtag-face '(
-  (((class color) (background dark))  (:foreground "LightGoldenrod2"))
+  (((class color) (background dark))  (:foreground "#E0CF9F")) ;zenburn-yellow-1
   (((class color) (background light)) (:foreground "LightGoldenrod4"))
   (t (:bold t :italic t)))
   "gtd-mode face used for hashtags."
   :group 'gtd)
 
 (defface gtd-subdue-face '(
-  (((class color) (background dark))  (:foreground "gray40"))
+  (((class color) (background dark))  (:foreground "#5F7F5F")) ;zenburn-green-1
   (((class color) (background light)) (:foreground "gray40"))
   (t (:bold nil :italic nil)))
   "gtd-mode face used for subdued text, links, and formatting characters."
