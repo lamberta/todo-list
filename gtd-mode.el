@@ -377,7 +377,7 @@
     ;;empty contents of src-file
     (if (and success-p clear-src-file-p)
       (with-current-buffer (find-file-noselect src-file)
-        (mark-whole-buffer)
+        (call-interactively 'mark-whole-buffer)
         (kill-region (region-beginning) (region-end))
         (save-buffer)
         (kill-buffer)))
@@ -803,7 +803,7 @@
   (let ((region-string (if (and beg end)
                          (buffer-substring-no-properties beg end))))
     (mail 'new gtd-default-mail)
-    (mail-text)
+    (call-interactively 'mail-text)
     (if region-string
       (insert region-string))))
 
@@ -956,8 +956,8 @@
       (if (not (outline-on-heading-p t))
         (indent-relative)
         (if (outline-invisible-p (line-end-position))
-          (show-subtree)
-          (hide-subtree))))
+          (outline-show-subtree)
+          (outline-hide-subtree))))
     (define-key gtd-mode-map (kbd "<tab>") 'gtd-outline-cycle)))
 
 (provide 'gtd-mode)
