@@ -150,6 +150,11 @@
   :type 'string
   :group 'gtd)
 
+(defcustom gtd-default-mail nil
+  "Mail address to send entries."
+  :type 'string
+  :group 'gtd)
+
 (defcustom gtd-trash nil
   "Path to file where trashed items are sent. If file doesn't exist, just delete the item."
   :type 'file
@@ -790,6 +795,32 @@
   (delete-trailing-whitespace)
   (save-buffer))
 
+(defun gtd-mail-compose (beg end)
+  "Edit message to send `gtd-default-mail'. Insert a selected region in body."
+  (interactive (if (use-region-p)
+                 (list (region-beginning) (region-end))
+                 (list nil nil)))
+  (let ((region-string (if (and beg end)
+                         (buffer-substring-no-properties beg end))))
+    (mail 'new gtd-default-mail)
+    (mail-text)
+    (if region-string
+      (insert region-string))))
+
+(defun gtd-save-buffers ()
+  "Save any modified buffers in `gtd-file-alist'."
+  (interactive)
+  ;get list of modified gtd buffers, filter nils
+  (let ((modified-bufs
+          (delq nil (mapcar
+                      #'(lambda (fp-cell)
+                          (let ((buf (get-file-buffer (cdr fp-cell))))
+                            (if (and buf (buffer-modified-p buf))
+                              buf)))
+                      gtd-file-alist))))
+    (save-some-buffers t #'(lambda ()
+                             (member (current-buffer) modified-bufs)))))
+
 (defvar gtd-view-open-p nil)
 (defvar gtd-win-config nil)
 (defvar gtd-open-file-buffer nil)
@@ -858,6 +889,7 @@
   (message "Commands: {g}oto, {m}ove, {s}end, {a|A}rchive, {n|N}ext-action, {p|P}roject, {d}elete, {c}alendar, {T}imestamp"))
 
 (defvar gtd-mode-map (make-sparse-keymap))
+(define-key gtd-mode-map (kbd "C-x C-s") 'gtd-save-buffers)
 (define-key gtd-mode-map (kbd "C-c g") 'gtd-goto)
 (define-key gtd-mode-map (kbd "C-c m") 'gtd-move)
 (define-key gtd-mode-map (kbd "C-c s") 'gtd-send)
