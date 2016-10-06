@@ -825,14 +825,16 @@
 (defvar gtd-win-config nil)
 (defvar gtd-open-file-buffer nil)
 
-(defun gtd-view-toggle (&optional horizontal-p use-current-window-p filename)
-  "Open/close a split-pane view of the project and action files in
-   `gtd-view-file-alist'. Default to vertical split, if HORIZONTAL-P is T,
-   split windows horizontally. Will remove open windows unless USE-CURRENT-WINDOW-P is T.
-   If FILENAME is set, split and open the file in the big window."
+(defun gtd-view-toggle (&optional horizontal-p use-current-window-p split-file-alist filename)
+  "Open/close a split-pane view of files in SPLIT_FILE_ALIST or `gtd-view-file-alist'.
+   Default to vertical split, if HORIZONTAL-P is T, split windows horizontally. Will
+   remove open windows unless USE-CURRENT-WINDOW-P is T. If FILENAME is set, split and
+   open the file in the big window."
   (interactive)
-  (if (null gtd-view-file-alist)
-    (message "Must set files in `gtd-view-file-alist' to view.")
+  (if (null split-file-alist)
+    (setq split-file-alist gtd-view-file-alist))
+  (if (null split-file-alist)
+    (message "Must provide SPLIT-FILE-ALIST arg or set `gtd-view-file-alist' to view.")
     (if gtd-view-open-p
       (progn
         ;;close em down
@@ -841,7 +843,7 @@
         (if gtd-win-config
           (set-window-configuration gtd-win-config))
         ;;kill buffers
-        (dolist (fp gtd-view-file-alist)
+        (dolist (fp split-file-alist)
           (kill-buffer (get-file-buffer (car fp))))
         (when gtd-open-file-buffer
           (kill-buffer gtd-open-file-buffer)
@@ -868,9 +870,9 @@
         ;;open each file in new window, then return to first
         (let ((win (get-buffer-window))
               (default-split-size (if horizontal-p
-                                    (/ (window-total-width) (length gtd-view-file-alist))
-                                    (/ (window-total-height) (length gtd-view-file-alist)))))
-          (dolist (fp gtd-view-file-alist)
+                                    (/ (window-total-width) (length split-file-alist))
+                                    (/ (window-total-height) (length split-file-alist)))))
+          (dolist (fp split-file-alist)
             (find-file (car fp))
             (when (cdr fp)
               (if horizontal-p
