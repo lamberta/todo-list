@@ -807,6 +807,30 @@
     (if region-string
       (insert region-string))))
 
+(defun gtd-map-open-buffers (fn &rest args)
+  "Execute function within any open buffers from `gtd-file-alist'."
+  (save-current-buffer
+    (dolist (rec gtd-file-alist)
+      (let ((buf (get-file-buffer (cdr rec))))
+        (when buf
+          (set-buffer buf)
+          (apply fn args))))))
+
+(defun gtd-text-scale-increase ()
+  "Increase the height of the default face in all open GTD buffers."
+  (interactive)
+  (gtd-map-open-buffers 'text-scale-increase 1))
+
+(defun gtd-text-scale-decrease ()
+  "Decrease the height of the default face in all open GTD buffers."
+  (interactive)
+  (gtd-map-open-buffers 'text-scale-decrease 1))
+
+(defun gtd-text-scale-reset ()
+  "Reset the height of the default face in all open GTD buffers."
+  (interactive)
+  (gtd-map-open-buffers 'text-scale-set 0))
+
 (defun gtd-save-buffers ()
   "Save any modified buffers in `gtd-file-alist'."
   (interactive)
@@ -906,8 +930,15 @@
 (define-key gtd-mode-map (kbd "C-c T") 'gtd-timestamp)
 (define-key gtd-mode-map (kbd "C-<return>") 'gtd-insert-timestamp-and-newline)
 (define-key gtd-mode-map (kbd "C-c ?") 'gtd-display-keybindings)
-(define-key gtd-mode-map (kbd "C-c c") 'gtd-calendar-add-event)
-
+;standard text resize changes all open gtd buffers
+(define-key gtd-mode-map (kbd "s-=") 'gtd-text-scale-increase)
+(define-key gtd-mode-map (kbd "s--") 'gtd-text-scale-decrease)
+(define-key gtd-mode-map (kbd "s-0") 'gtd-text-scale-reset)
+;;shift-resize only changes current buffer
+(define-key gtd-mode-map (kbd "s-+") 'text-scale-increase) ;s-S-=
+(define-key gtd-mode-map (kbd "s-_") 'text-scale-decrease) ;s-S--
+(define-key gtd-mode-map (kbd "s-)") '(lambda () (interactive) (text-scale-set 0))) ;s-S-0
+;;REMOVE: (define-key gtd-mode-map (kbd "C-c c") 'gtd-calendar-add-event)
 
 ;;
 ;; GO!
