@@ -5,7 +5,7 @@
 ;;
 ;; Author: Billy Lamberta <b@lamberta.org>
 ;; Created: Apr 2014
-;; Updated: Apr 2015
+;; Updated: Nov 2016
 ;; Keywords: todo, gtd
 ;; $Revision: 0.1 $
 ;;
@@ -202,6 +202,26 @@
   "gtd-mode face used for subdued text, links, and formatting characters."
   :group 'gtd)
 
+(defface gtd-header-1-face '(
+  (((class color) (background dark))  (:foreground "#8CD0D3")) ;zenburn-blue
+  (((class color) (background light)) (:foreground "black"))
+  (t (:bold nil :italic nil)))
+  "gtd-mode face used for header one tags."
+  :group 'gtd)
+
+(defface gtd-header-2-face '(
+  (((class color) (background dark))  (:foreground "#6CA0A3")) ;zenburn-blue-2
+  (((class color) (background light)) (:foreground "black"))
+  (t (:bold nil :italic nil)))
+  "gtd-mode face used for header 2 tags."
+  :group 'gtd)
+
+(defface gtd-url-face '(
+  (((class color) (background dark))  (:foreground "#9C6363")) ;zenburn-red-3
+  (((class color) (background light)) (:foreground "black"))
+  (t (:bold nil :italic nil)))
+  "gtd-mode face used for URLs."
+  :group 'gtd)
 ;;
 ;; UTILS
 ;;
@@ -950,6 +970,9 @@
 (defvar gtd-tag-face 'gtd-tag-face "gtd-mode face used for context tags.")
 (defvar gtd-hashtag-face 'gtd-hashtag-face "gtd-mode face used for hashtags.")
 (defvar gtd-subdue-face 'gtd-subdue-face "gtd-mode face used for subdued text.")
+(defvar gtd-header-1-face 'gtd-header-1-face "gtd-mode face used for header one tags.")
+(defvar gtd-header-2-face 'gtd-header-2-face "gtd-mode face used for header two tags.")
+(defvar gtd-url-face 'gtd-url-face "gtd-mode face used for URLs.")
 
 (define-minor-mode gtd-mode
   "Commands for Getting Things Done."
@@ -967,10 +990,14 @@
       (list
         (list gtd-tag-regexp 0 gtd-tag-face t)
         (list gtd-hashtag-regexp 0 gtd-hashtag-face t)
-        '("<.*>" 0 gtd-subdue-face t)         ;use brackets for comments
-        '("-\\*-.*-\\*-" 0 gtd-subdue-face t) ;file vars
-        (list link-def 1 gtd-subdue-face t)   ;front bracket
-        (list link-def 3 gtd-subdue-face t)   ;end of tags
+        '("<.*>" 0 gtd-subdue-face t)          ;bracket comments
+        '("//.*$" 0 gtd-subdue-face t)         ;line comments
+        '("^#\\s-+.*$" 0 gtd-header-1-face t)  ;markdown-style headers
+        '("^##\\s-+.*$" 0 gtd-header-2-face t)
+        '("-\\*-.*-\\*-" 0 gtd-subdue-face t)  ;emacs file vars
+        '("\\(https?://[^?\r\n>]+\\).*?$" 1 gtd-url-face t) ;url
+        (list link-def 1 gtd-subdue-face t)    ;front bracket
+        (list link-def 3 gtd-subdue-face t)    ;end of tags
         (list link-desc 0 gtd-subdue-face t))))
   ;;imenu
   (add-to-list 'imenu-generic-expression (list nil gtd-tag-regexp 1))
