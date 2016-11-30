@@ -995,7 +995,7 @@
         '("^#\\s-+.*$" 0 gtd-header-1-face t)  ;markdown-style headers
         '("^##\\s-+.*$" 0 gtd-header-2-face t)
         '("-\\*-.*-\\*-" 0 gtd-subdue-face t)  ;emacs file vars
-        '("\\(https?://[^?\r\n>]+\\).*?$" 1 gtd-url-face t) ;url
+        '("\\(https?://[^[:space:]\r\n>]+\\).*?$" 1 gtd-url-face t) ;url
         (list link-def 1 gtd-subdue-face t)    ;front bracket
         (list link-def 3 gtd-subdue-face t)    ;end of tags
         (list link-desc 0 gtd-subdue-face t))))
