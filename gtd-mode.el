@@ -150,6 +150,11 @@
   :type 'string
   :group 'gtd)
 
+(defcustom gtd-default-font-size 0
+  "Provide default relative font size. 0 is normal, 1 increase, -1 decrease, etc."
+  :type 'integer
+  :group 'gtd)
+
 (defcustom gtd-default-mail nil
   "Mail address to send entries."
   :type 'string
@@ -836,15 +841,17 @@
           (set-buffer buf)
           (apply fn args))))))
 
-(defun gtd-text-scale-increase ()
+(defun gtd-text-scale-increase (&optional n)
   "Increase the height of the default face in all open GTD buffers."
   (interactive)
-  (gtd-map-open-buffers 'text-scale-increase 1))
+  (unless n (setq n 1))
+  (gtd-map-open-buffers 'text-scale-increase n))
 
-(defun gtd-text-scale-decrease ()
+(defun gtd-text-scale-decrease (&optional n)
   "Decrease the height of the default face in all open GTD buffers."
   (interactive)
-  (gtd-map-open-buffers 'text-scale-decrease 1))
+  (unless n (setq n 1))
+  (gtd-map-open-buffers 'text-scale-decrease n))
 
 (defun gtd-text-scale-reset ()
   "Reset the height of the default face in all open GTD buffers."
@@ -923,7 +930,10 @@
                 (split-window-right default-split-size) ;no custom value now
                 (split-window-below (cdr fp))) ;size specified in setup
               (other-window 1)))
-          (select-window win))))))
+          (select-window win))
+        ;;adjust font size (if set)
+        (if (/= gtd-default-font-size 0)
+          (gtd-text-scale-increase gtd-default-font-size))))))
 
 ;;
 ;; KEYBINDINGS
