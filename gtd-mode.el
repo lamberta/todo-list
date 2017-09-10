@@ -630,7 +630,7 @@
       nil)))
 
 
-(defun gtd-append-entry-to-file (file-alist &optional prompt goto-p)
+(defun gtd-append-entry-to-file-alist (file-alist &optional prompt goto-p)
   "Append the current entry to the end of the selected file from FILE-ALIST.
    If GOTO-P is T, open the buffer and view at the insertion point."
   (let ((entry (gtd-entry-at-point))
@@ -774,13 +774,13 @@
 (defun gtd-send-to-archive ()
   "Send the current entry to a file selected from `gtd-archive-file-alist'."
   (interactive)
-  (gtd-append-entry-to-file gtd-archive-file-alist "Send to archive:"))
+  (gtd-append-entry-to-file-alist gtd-archive-file-alist "Send to archive:"))
 
 (defun gtd-move-to-archive ()
   "Move the current entry to a file selected from `gtd-archive-file-alist'.
    Open the file buffer at the insertion point."
   (interactive)
-  (gtd-append-entry-to-file gtd-archive-file-alist "Move to archive:" t))
+  (gtd-append-entry-to-file-alist gtd-archive-file-alist "Move to archive:" t))
 
 (defun gtd-send-to-project ()
   "Send the current entry to the project label in the [projects] file."
