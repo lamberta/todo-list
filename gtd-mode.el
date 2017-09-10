@@ -955,7 +955,6 @@
 (define-key gtd-mode-map (kbd "C-c N") 'gtd-move-to-action)
 (define-key gtd-mode-map (kbd "C-c p") 'gtd-send-to-project)
 (define-key gtd-mode-map (kbd "C-c P") 'gtd-move-to-project)
-(define-key gtd-mode-map (kbd "C-c d") 'gtd-delete)
 (define-key gtd-mode-map (kbd "C-c <backspace>") 'gtd-delete)
 (define-key gtd-mode-map (kbd "C-c T") 'gtd-timestamp)
 (define-key gtd-mode-map (kbd "C-<return>") 'gtd-insert-timestamp-and-newline)
