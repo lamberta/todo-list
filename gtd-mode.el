@@ -1019,7 +1019,8 @@
   ;;outline
   (setq gtd-tag-prefix (replace-regexp-in-string "%s.*" "" gtd-tag-format))
   ;;the shorter the match, the higher up the hierarchy. "^@\\|[*]+\\s-"
-  (setq-local outline-regexp (format "^%s\\|%s\\s-" gtd-tag-prefix outline-regexp)))
+  ;(setq-local outline-regexp (format "^%s\\|%s\\s-" gtd-tag-prefix outline-regexp))
+  (setq-local outline-regexp "^@.+\\|^#+.+")) ;tag and markdown header
 
 (eval-after-load 'outline-minor
   (progn
@@ -1042,7 +1043,7 @@
               (setq found-invisible-heading-p t)))
           (if found-invisible-heading-p
             (outline-show-all)
-            (outline-hide-sublevels 1)))))
+            (outline-hide-body)))))
     ;; key bindings
     (define-key gtd-mode-map (kbd "<tab>") 'gtd-outline-cycle-header)
     (define-key gtd-mode-map (kbd "S-<tab>") 'gtd-outline-cycle-all)))
