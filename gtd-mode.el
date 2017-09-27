@@ -1019,7 +1019,7 @@
 
 (eval-after-load 'outline-minor
   (progn
-    (defun gtd-outline-cycle ()
+    (defun gtd-outline-cycle-header ()
       "If cursor is on a header, toggle visibility of corresponding children. Otherwise, insert a tab using `indent-relative'."
       (interactive)
       (if (not (outline-on-heading-p t))
@@ -1027,6 +1027,20 @@
         (if (outline-invisible-p (line-end-position))
           (outline-show-subtree)
           (outline-hide-subtree))))
-    (define-key gtd-mode-map (kbd "<tab>") 'gtd-outline-cycle)))
+    (defun gtd-outline-cycle-all ()
+      "Toggle visibility of all headers in file. If any are hidden, show all."
+      (interactive)
+      (save-excursion
+        (goto-char (point-min))
+        (let ((found-invisible-heading-p nil))
+          (while (and (outline-next-heading) (null found-invisible-heading-p))
+            (if (outline-invisible-p (line-end-position))
+              (setq found-invisible-heading-p t)))
+          (if found-invisible-heading-p
+            (outline-show-all)
+            (outline-hide-sublevels 1)))))
+    ;; key bindings
+    (define-key gtd-mode-map (kbd "<tab>") 'gtd-outline-cycle-header)
+    (define-key gtd-mode-map (kbd "S-<tab>") 'gtd-outline-cycle-all)))
 
 (provide 'gtd-mode)
