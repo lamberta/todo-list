@@ -5,7 +5,7 @@
 ;;
 ;; Author: Billy Lamberta <b@lamberta.org>
 ;; Created: Apr 2014
-;; Updated: Nov 2016
+;; Updated: Sep 2017
 ;; Keywords: todo, gtd
 ;; $Revision: 0.1 $
 ;;
@@ -876,7 +876,7 @@
 (defvar gtd-win-config nil)
 (defvar gtd-open-file-buffer nil)
 
-(defun gtd-view-toggle (&optional horizontal-p use-current-window-p split-file-alist filename)
+(defun gtd-view-toggle (&optional horizontal-p use-current-window-p split-file-alist filename map-fn)
   "Open/close a split-pane view of files in SPLIT_FILE_ALIST or `gtd-view-file-alist'.
    Default to vertical split, if HORIZONTAL-P is T, split windows horizontally. Will
    remove open windows unless USE-CURRENT-WINDOW-P is T. If FILENAME is set, split and
@@ -900,6 +900,7 @@
           (kill-buffer gtd-open-file-buffer)
           (setq gtd-open-file-buffer nil)))
       (progn
+        ;; open buffers and configure view
         (setq
           gtd-view-open-p t
           gtd-win-config (current-window-configuration))
@@ -931,9 +932,12 @@
                 (split-window-below (cdr fp))) ;size specified in setup
               (other-window 1)))
           (select-window win))
-        ;;adjust font size (if set)
+        ;; adjust font size (if set)
         (if (/= gtd-default-font-size 0)
-          (gtd-text-scale-increase gtd-default-font-size))))))
+          (gtd-text-scale-increase gtd-default-font-size))
+        ;; if passed function, apply to all open buffers
+        (if map-fn
+          (gtd-map-open-buffers map-fn))))))
 
 ;;
 ;; KEYBINDINGS
