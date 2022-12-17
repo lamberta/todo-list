@@ -131,12 +131,14 @@
   :group 'gtd)
 
 (defcustom gtd-archive-file-alist nil
-  "Collection of shortnames and their corresponding file path to send entries for archival reference."
+  "Collection of shortnames and their corresponding file path to send entries
+   for archival reference."
   :type '(alist :key-type 'string :value-type 'file)
   :group 'gtd)
 
 (defcustom gtd-view-file-alist nil
-  "Files to open when `gtd-toggle-view' is called. A file-path and integer argument to pass to `split-window'."
+  "Files to open when `gtd-toggle-view' is called. A file-path and integer
+   argument to pass to `split-window'."
   :type '(alist :key-type 'file :value-type 'integer)
   :group 'gtd)
 
@@ -161,7 +163,8 @@
   :group 'gtd)
 
 (defcustom gtd-trash nil
-  "Path to file where trashed items are sent. If file doesn't exist, just delete the item."
+  "Path to file where trashed items are sent. If file doesn't exist, just delete
+   the item."
   :type 'file
   :group 'gtd)
 
@@ -292,7 +295,8 @@
 
 (defun gtd-completing-read (itemlist &optional prompt default-val)
   "Read a menu selection from the minibuffer using ALIST for options.
-   Return an ALIST of all key matches. Use `ido-completing-read' if it's available."
+   Return an ALIST of all key matches. Use `ido-completing-read' if it's
+   available."
   (setq prompt (make-prompt (or prompt "Select:") default-val))
   (let* ((choices (all-completions "" itemlist))
          (completing-read (if (fboundp #'ido-completing-read) #'ido-completing-read #'completing-read))
@@ -303,7 +307,8 @@
 
 (defun completing-read-alist (alist &optional prompt default-val)
   "Read a menu selection from the minibuffer using ALIST for options.
-   Return an ALIST of all key matches. Use `ido-completing-read' if it's available."
+   Return an ALIST of all key matches. Use `ido-completing-read' if it's
+   available."
   (setq prompt (make-prompt (or prompt "Select:") default-val))
   (let* ((choices (all-completions "" alist))
          (completing-read (if (fboundp #'ido-completing-read) #'ido-completing-read #'completing-read))
@@ -312,7 +317,8 @@
       (assoc-all entry alist))))
 
 (defun valid-entry-p (entry &optional alist)
-  "Test if ENTRY is a non-empty string. If passed ALIST, test if ENTRY is a valid key."
+  "Test if ENTRY is a non-empty string. If passed ALIST, test if ENTRY is a
+   valid key."
   (if (and (stringp entry) (not (string= entry "")))
     (if alist
       (if (assoc entry alist) t nil)
@@ -331,7 +337,7 @@
       (let ((name (if (file-entry-p pair)
                     (format "%s" (car pair))
                     (format "%s-%s" (car (rassoc (cdr pair) gtd-file-alist)) (car pair)))))
-        (add-to-list 'new-alist (cons name (cdr pair)) t)))
+        (cl-pushnew (cons name (cdr pair)) new-list)))
     new-alist))
 
 (defun gtd-escape-tag (tag)
@@ -346,8 +352,9 @@
 
 (defun with-file (filename callback &optional keep-open-p)
   "Open FILENAME in a new buffer where the CALLBACK function is executed.
-   CALLBACK is passed a single STRING argument if an error occured, or NIL if ok.
-   If not already open, a file buffer is closed when done unless KEEP-OPEN-P is T."
+   CALLBACK is passed a single STRING argument if an error occured, or NIL if
+   ok. If not already open, a file buffer is closed when done unless
+   KEEP-OPEN-P is T."
   (let ((filepath (expand-file-name filename)))
     (if (not (file-exists-p filepath))
       (funcall callback (format "Unable to read file: %s" filename))
@@ -387,9 +394,9 @@
     nil))
 
 (defun gtd-concatenate-file (dest-file src-file &optional clear-src-file-p)
-  "Append the contents of SRC-FILE to the end of DEST-FILE. If CLEAR-SRC-FILE-P is T,
-   clear SRC-FILE contents but keep the file. Return T on success, otherwise NIL.
-   This function is useful for merging inbox files."
+  "Append the contents of SRC-FILE to the end of DEST-FILE. If CLEAR-SRC-FILE-P
+   is T, clear SRC-FILE contents but keep the file. Return T on success,
+   otherwise NIL. This function is useful for merging inbox files."
   (let (success-p)
     (with-current-buffer (find-file-noselect dest-file)
       (goto-char (point-max))
@@ -461,7 +468,7 @@
       (let* ((filepath (cdr tag-pair))
              (shortname (car (rassoc filepath gtd-file-alist))))
         (unless (assoc shortname file-alist)
-          (add-to-list 'file-alist (cons shortname filepath)))))
+          (cl-pushnew (cons shortname filepath) file-alist))))
     file-alist))
 
 
@@ -808,7 +815,8 @@
 ;;
 
 (defun gtd-insert-timestamp-and-newline ()
-  "Inserts a timestamp and newline after an entry. Tries not to break timestamp on separate lines."
+  "Inserts a timestamp and newline after an entry. Tries not to break timestamp
+   on separate lines."
   (interactive)
   (let* ((timestamp (with-temp-buffer
                       (gtd-timestamp)
@@ -877,10 +885,10 @@
 (defvar gtd-open-file-buffer nil)
 
 (defun gtd-view-toggle (&optional horizontal-p use-current-window-p split-file-alist filename map-fn)
-  "Open/close a split-pane view of files in SPLIT_FILE_ALIST or `gtd-view-file-alist'.
-   Default to vertical split, if HORIZONTAL-P is T, split windows horizontally. Will
-   remove open windows unless USE-CURRENT-WINDOW-P is T. If FILENAME is set, split and
-   open the file in the big window."
+  "Open/close a split-pane view of files in SPLIT_FILE_ALIST or
+   `gtd-view-file-alist'. Default to vertical split, if HORIZONTAL-P is T, split
+   windows horizontally. Will remove open windows unless USE-CURRENT-WINDOW-P is
+   T. If FILENAME is set, split and open the file in the big window."
   (interactive)
   (if (null split-file-alist)
     (setq split-file-alist gtd-view-file-alist))
@@ -970,7 +978,7 @@
 ;;shift-resize only changes current buffer
 (define-key gtd-mode-map (kbd "s-+") 'text-scale-increase) ;s-S-=
 (define-key gtd-mode-map (kbd "s-_") 'text-scale-decrease) ;s-S--
-(define-key gtd-mode-map (kbd "s-)") '(lambda () (interactive) (text-scale-set 0))) ;s-S-0
+(define-key gtd-mode-map (kbd "s-)") #'(lambda () (interactive) (text-scale-set 0))) ;s-S-0
 ;;REMOVE: (define-key gtd-mode-map (kbd "C-c c") 'gtd-calendar-add-event)
 
 ;;
@@ -1023,7 +1031,8 @@
 (eval-after-load 'outline-minor
   (progn
     (defun gtd-outline-cycle-header ()
-      "If cursor is on a header, toggle visibility of corresponding children. Otherwise, insert a tab using `indent-relative'."
+      "If cursor is on a header, toggle visibility of corresponding children.
+       Otherwise, insert a tab using `indent-relative'."
       (interactive)
       (if (not (outline-on-heading-p t))
         (indent-relative)
