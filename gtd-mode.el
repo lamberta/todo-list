@@ -5,9 +5,9 @@
 ;;
 ;; Author: Billy Lamberta <b@lamberta.org>
 ;; Created: Apr 2014
-;; Updated: Sep 2017
+;; Updated: Dec 2022
 ;; Keywords: todo, gtd
-;; $Revision: 0.1 $
+;; $Revision: 0.2 $
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -976,8 +976,6 @@
 ;;
 ;; GO!
 ;;
-
-(autoload 'gtd-calendar-add-event "gtd-calendar" "Add a calendar event" t)
 
 (defvar gtd-tag-prefix nil)
 (defvar gtd-tag-face 'gtd-tag-face "gtd-mode face used for context tags.")
