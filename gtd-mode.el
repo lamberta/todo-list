@@ -993,6 +993,7 @@
 (defvar gtd-header-2-face 'gtd-header-2-face "gtd-mode face used for header two tags.")
 (defvar gtd-url-face 'gtd-url-face "gtd-mode face used for URLs.")
 
+;;;###autoload
 (define-minor-mode gtd-mode
   "Commands for Getting Things Done."
   :lighter " gtd"
