@@ -337,7 +337,7 @@
       (let ((name (if (file-entry-p pair)
                     (format "%s" (car pair))
                     (format "%s-%s" (car (rassoc (cdr pair) gtd-file-alist)) (car pair)))))
-        (cl-pushnew (cons name (cdr pair)) new-list)))
+        (cl-pushnew (cons name (cdr pair)) new-alist)))
     new-alist))
 
 (defun gtd-escape-tag (tag)
@@ -521,18 +521,12 @@
 (defun mark-current-block ()
   "Marks the current text block region situated between empty lines."
   (interactive)
-  (let (p1 p2)
-    (progn
-      (if (re-search-backward "\n[ \t]*\n" nil "move")
-        (progn
-          (re-search-forward "\n[ \t]*\n")
-          (setq p1 (point)))
-        (setq p1 (point)))
-      (if (re-search-forward "\n[ \t]*\n" nil "move")
-        (progn
-          (re-search-backward "\n[ \t]*\n")
-          (setq p2 (point)))
-        (setq p2 (point))))
+  (let (p1 (re-empty-lines "\n[ \t]*\n"))
+    (if (re-search-backward re-empty-lines nil "move")
+      (re-search-forward re-empty-lines))
+    (setq p1 (point))
+    (if (re-search-forward re-empty-lines nil "move")
+      (re-search-backward re-empty-lines))
     (set-mark p1)))
 
 (defun gtd-entry-at-point ()
