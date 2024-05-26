@@ -250,6 +250,7 @@
 
 ;; MODE
 
+;;;###autoload
 (define-minor-mode todo-list-mode
   "Set your goals while keeping up with life."
   :lighter " todo-list"
