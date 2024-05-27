@@ -124,6 +124,12 @@
 
 ;; FILE MANAGEMENT
 
+(defun todo-list-get-files ()
+  "Return a list of file paths from `todo-list-files'."
+  (mapcar #'(lambda (key)
+              (expand-file-name (plist-get todo-list-files key)))
+          '(:left :right)))
+
 (defun todo-list-open-files ()
   "Open files from `todo-list-files' in side-by-side windows."
   (if (not (and (plist-member todo-list-files :left)
@@ -164,17 +170,15 @@
       (setq todo-list-files-open-p nil)
       (when todo-list-saved-win-config
         (set-window-configuration todo-list-saved-win-config)
-        (setq todo-list-saved-win-config nil)))
+        (setq todo-list-saved-win-config nil)
+        ;; remove buffers
+        (dolist (file (todo-list-get-files))
+          (kill-buffer (get-file-buffer file)))))
     (progn
       (setq todo-list-saved-win-config (current-window-configuration))
       (setq todo-list-files-open-p t)
       (todo-list-open-files)
       (todo-list-set-font-size))))
-
-(defun todo-list-get-files ()
-  "Return a list of file paths from `todo-list-files'."
-  (mapcar (lambda (key) (plist-get todo-list-files key))
-    '(:left :right)))
 
 (defun todo-list-save-buffers ()
   "Save any modified buffers in files from `todo-list-files'."
