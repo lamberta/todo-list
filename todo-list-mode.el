@@ -162,6 +162,7 @@
 (defvar todo-list-saved-win-config nil
   "Variable to store the previous window configuration.")
 
+;;;###autoload
 (defun todo-list-toggle ()
   "Open and close `todo-list-mode' while preserving window configuration."
   (interactive)
