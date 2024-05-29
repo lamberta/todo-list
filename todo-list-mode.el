@@ -192,27 +192,68 @@
 
 ;; OUTLINE
 
+(defun todo-list-current-heading-level ()
+  "Return the outline heading level at point. [1, 2, nil]"
+  (when (outline-on-heading-p t)
+    (save-excursion
+      (outline-back-to-heading)
+      (if (looking-at outline-regexp)
+          (let ((match-count (length (match-string 0))))
+            ;; More characters matched means a deeper level.
+            (cond
+             ((= match-count 0) nil)
+             ((= match-count 2) 1)
+             ((> match-count 2) 2)))
+        nil))))
+
 (defun todo-list-toggle-heading ()
-  "Toggle the visibility of the current `outline-mode' heading."
+  "Toggle the visibility of the current heading."
   (interactive)
-  (save-excursion
-    (outline-back-to-heading)
-    (if (outline-invisible-p (line-end-position))
-      (outline-show-entry)
-      (outline-hide-entry))))
+  (when-let ((level (todo-list-current-heading-level)))
+    (save-excursion
+      (outline-back-to-heading)
+      (let ((invisible-p (outline-invisible-p (line-end-position))))
+        (pcase level
+          (1 (if invisible-p
+               (outline-show-subtree)
+               (outline-hide-leaves)))
+          (2 (if invisible-p
+               (outline-show-entry)
+               (outline-hide-entry))))))))
 
 (defun todo-list-toggle-headings ()
-  "Toggle the visibility of all `outline-mode' headings."
+  "Toggle the visibility of all headings."
   (interactive)
   (save-excursion
     (goto-char (point-min))
-    (let ((invisible-heading-p nil))
-      (while (and (outline-next-heading) (not invisible-heading-p))
+    (let ((invisible-p nil))
+      (while (and (outline-next-heading) (not invisible-p))
         (if (outline-invisible-p (line-end-position))
-          (setq invisible-heading-p t)))
-      (if invisible-heading-p
+          (setq invisible-p t)))
+      (if invisible-p
         (outline-show-all)
         (outline-hide-body)))))
+
+(defun todo-list-goto-section (move-fn)
+  "Move to outline section based on MOVE-FN."
+  (let (pos)
+    (save-excursion
+      (while (and (null pos) (funcall move-fn))
+        (when-let ((level (todo-list-current-heading-level)))
+          (if (= level 1)
+            (setq pos (point))))))
+    (if pos
+      (goto-char pos))))
+
+(defun todo-list-next-section ()
+  "Move to next section."
+  (interactive)
+  (todo-list-goto-section #'outline-next-heading))
+
+(defun todo-list-previous-section ()
+  "Move to previous section."
+  (interactive)
+  (todo-list-goto-section #'outline-previous-heading))
 
 ;; ACCESSIBILITY
 
@@ -248,10 +289,16 @@
 (define-key todo-list-mode-map (kbd "C-x C-s") 'todo-list-save-buffers)
 (define-key todo-list-mode-map (kbd "<tab>") 'todo-list-toggle-heading)
 (define-key todo-list-mode-map (kbd "S-<tab>") 'todo-list-toggle-headings)
-;; macos
-(define-key todo-list-mode-map (kbd "s-=") 'todo-list-increase-font-size)
-(define-key todo-list-mode-map (kbd "s--") 'todo-list-decrease-font-size)
-(define-key todo-list-mode-map (kbd "s-0") 'todo-list-reset-font-size)
+;; Tip: Disable macOS keyboard shortcuts for ctrl-<direction>
+(define-key todo-list-mode-map (kbd "C-<down>") 'outline-next-heading)
+(define-key todo-list-mode-map (kbd "C-<up>") 'outline-previous-heading)
+(define-key todo-list-mode-map (kbd "C-<right>") 'todo-list-next-section)
+(define-key todo-list-mode-map (kbd "C-<left>") 'todo-list-previous-section)
+
+(when (eq system-type 'darwin)
+  (define-key todo-list-mode-map (kbd "s-=") 'todo-list-increase-font-size)
+  (define-key todo-list-mode-map (kbd "s--") 'todo-list-decrease-font-size)
+  (define-key todo-list-mode-map (kbd "s-0") 'todo-list-reset-font-size))
 
 ;; MODE
 
@@ -261,7 +308,8 @@
   :lighter " todo-list"
   :keymap todo-list-mode-map
   (outline-minor-mode 1)
-  (setq-local outline-regexp "^#+.*\\|^@[[:graph:]]+")  ; define headings
+  ; Define outline headings. More characters matched means a deeper nested level.
+  (setq-local outline-regexp "^#[[:blank:]]?\\|^@[[:graph:]]+")
   (font-lock-add-keywords nil todo-list-font-lock-keywords)
   (font-lock-mode 1))
 
