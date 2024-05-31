@@ -149,11 +149,13 @@
           (todo-list-mode 1)
           (if hide-left-p
             (outline-hide-body))
+          (outline-next-heading)  ; Start cursor at first entry for each file.
           (split-window-right)
           (find-file-other-window right)
           (todo-list-mode 1)
           (if hide-right-p
             (outline-hide-body))
+          (outline-next-heading)
           (select-window (get-buffer-window (find-file-noselect left))))))))
 
 (defvar todo-list-files-open-p nil
