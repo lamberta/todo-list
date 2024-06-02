@@ -236,6 +236,8 @@
         (outline-show-all)
         (outline-hide-body)))))
 
+;; NAVIGATION
+
 (defun todo-list-goto-section (move-fn)
   "Move to outline section based on MOVE-FN."
   (let (pos)
@@ -256,6 +258,33 @@
   "Move to previous section."
   (interactive)
   (todo-list-goto-section #'outline-previous-heading))
+
+(defun todo-list-collect-headings (buffers)
+  "Collect all outline headings with position from BUFFERS."
+  (let ((headings-alist '()))  ; (("name". (buf . pos)) ...)
+    (save-excursion
+      (dolist (buffer buffers)
+        (with-current-buffer buffer
+          (goto-char (point-min))
+          (while (re-search-forward outline-regexp nil t)
+            (let* ((pos (line-beginning-position))
+                   (heading (buffer-substring-no-properties pos (line-end-position))))
+              (add-to-list 'headings-alist
+                (cons heading (cons buffer pos)) t))))))
+    headings-alist))
+
+(defun todo-list-find-entry ()
+  "Find and jump to a `todo-list-mode' entry."
+  (interactive)
+  (let* ((buffers (mapcar #'get-file-buffer (todo-list-get-files)))
+         (headings-alist (todo-list-collect-headings buffers))
+         (choices (mapcar #'car headings-alist))
+         (selection (completing-read "Todo-list entry: " choices)))
+    (if-let ((entry (assoc selection headings-alist)))
+      (progn
+        (select-window (get-buffer-window (cadr entry)))
+        (goto-char (cddr entry)))
+      (message "Todo-list entry not found: %s" selection))))
 
 ;; ACCESSIBILITY
 
@@ -298,6 +327,7 @@
 (define-key todo-list-mode-map (kbd "C-<left>") 'todo-list-previous-section)
 
 (when (eq system-type 'darwin)
+  (define-key todo-list-mode-map (kbd "s-f") 'todo-list-find-entry)
   (define-key todo-list-mode-map (kbd "s-=") 'todo-list-increase-font-size)
   (define-key todo-list-mode-map (kbd "s--") 'todo-list-decrease-font-size)
   (define-key todo-list-mode-map (kbd "s-0") 'todo-list-reset-font-size))
