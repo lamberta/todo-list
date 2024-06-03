@@ -320,6 +320,7 @@
 (define-key todo-list-mode-map (kbd "C-x C-s") 'todo-list-save-buffers)
 (define-key todo-list-mode-map (kbd "<tab>") 'todo-list-toggle-heading)
 (define-key todo-list-mode-map (kbd "S-<tab>") 'todo-list-toggle-headings)
+(define-key todo-list-mode-map (kbd "C-c /") 'todo-list-find-entry)
 ;; Tip: Disable macOS keyboard shortcuts for ctrl-<direction>
 (define-key todo-list-mode-map (kbd "C-<down>") 'outline-next-heading)
 (define-key todo-list-mode-map (kbd "C-<up>") 'outline-previous-heading)
@@ -327,7 +328,6 @@
 (define-key todo-list-mode-map (kbd "C-<left>") 'todo-list-previous-section)
 
 (when (eq system-type 'darwin)
-  (define-key todo-list-mode-map (kbd "s-f") 'todo-list-find-entry)
   (define-key todo-list-mode-map (kbd "s-=") 'todo-list-increase-font-size)
   (define-key todo-list-mode-map (kbd "s--") 'todo-list-decrease-font-size)
   (define-key todo-list-mode-map (kbd "s-0") 'todo-list-reset-font-size))
