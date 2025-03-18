@@ -211,13 +211,11 @@ Restores window configuration when the last todo-list buffer is closed."
 ;;;###autoload
 (defun todo-list-toggle ()
   "Open and close `todo-list-mode' while preserving window configuration.
-When closing, asks to save any modified buffers first."
+When closing, Emacs will prompt to save any modified buffers."
   (interactive)
   (if todo-list--files-open-p
     (progn
       (setq todo-list--files-open-p nil)
-      ;; Save modified buffers before closing
-      (todo-list-save-buffers t)
       ;; Kill the buffers
       (dolist (file (todo-list--get-files))
         (when-let ((buffer (find-buffer-visiting file)))
@@ -263,18 +261,14 @@ When closing, asks to save any modified buffers first."
       ;; Apply font sizing
       (todo-list-set-font-size))))
 
-(defun todo-list-save-buffers (&optional no-confirm)
-  "Save any modified buffers in files from `todo-list-files'.
-When NO-CONFIRM is non-nil, save without asking for confirmation."
+(defun todo-list-save-buffers ()
+  "Save any modified buffers in files from `todo-list-files'."
   (interactive)
   (dolist (file (todo-list--get-files))
     (let ((buffer (find-buffer-visiting file)))
       (when (and buffer (buffer-modified-p buffer))
         (with-current-buffer buffer
-          (if no-confirm
-            (save-buffer)
-            (when (y-or-n-p (format "Save buffer %s? " (buffer-name)))
-              (save-buffer))))))))
+          (save-buffer))))))
 
 ;;; Task management commands
 
