@@ -4,10 +4,11 @@
 ;; Copyright (C) 2009 Billy Lamberta
 ;;
 ;; Author: Billy Lamberta
+;; URL: https://github.com/lamberta/todo-list
 ;; Created: Jan 2009
-;; Updated: May 2024
+;; Updated: Mar 2025
 ;; Keywords: todo, todo-list, gtd, outline
-;; $Revision: 1.0 $
+;; Version: 2.0
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
