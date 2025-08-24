@@ -28,12 +28,12 @@
 
 ;;; Commentary:
 
-;; `todo-list-mode' is a minor mode that provides a two-panel view for managing
-;; projects and goals using `org-mode'. This organization style was inspired by
-;; the Getting Things Done methodology but reduced to two basic collections to
-;; section off as you like:
-;; 1. active *projects* with attached tasks, and
-;; 2. *goals* that set direction to generate projects.
+;; `todo-list-mode' is a minor mode that provides a two-panel view for
+;; managing todo tasks and goals using `org-mode'. This organization
+;; style was inspired by the Getting Things Done methodology but
+;; reduced to two basic collections to section off as you like: 1.
+;; active *todo* tasks, and 2. *goals* to organize projects that
+;; generate tasks.
 ;;
 ;; Setup:
 ;;
@@ -44,7 +44,7 @@
 ;;   :after org
 ;;   :custom
 ;;   (todo-list-files
-;;     '(:projects "~/org/projects.org"
+;;     '(:todo "~/org/todo.org"
 ;;       :goals "~/org/goals.org"))
 ;;   :bind (("C-c t t" . todo-list-toggle)
 ;;          ("C-c t f" . todo-list-entry-find))
@@ -72,8 +72,8 @@
 
 (defcustom todo-list-files nil
   "Configuration for project and goal files.
-A plist with keys :projects and :goals pointing to org files."
-  :type '(plist :key-type (choice (const :projects)
+A plist with keys :todo and :goals pointing to org files."
+  :type '(plist :key-type (choice (const :todo)
                                   (const :goals))
                 :value-type (file :must-match t))
   :group 'todo-list)
@@ -114,15 +114,15 @@ A plist with keys :projects and :goals pointing to org files."
 (defun todo-list--get-files ()
   "Validate and return the project and goal files.
 Returns project and goal files if valid, signals error otherwise."
-  (unless (and (plist-member todo-list-files :projects)
+  (unless (and (plist-member todo-list-files :todo)
                (plist-member todo-list-files :goals))
-    (user-error "`todo-list-files' requires both `:projects' and `:goals' entries"))
+    (user-error "`todo-list-files' requires both `:todo' and `:goals' entries"))
 
-  (let ((projects (expand-file-name (plist-get todo-list-files :projects)))
+  (let ((todos (expand-file-name (plist-get todo-list-files :todo)))
         (goals (expand-file-name (plist-get todo-list-files :goals))))
-    (unless (and (file-exists-p projects) (file-exists-p goals))
+    (unless (and (file-exists-p todos) (file-exists-p goals))
       (user-error "Unable to read both file entries in `todo-list-files'"))
-    (cl-values projects goals)))
+    (cl-values todos goals)))
 
 (defun todo-list--setup-file-window (file &optional other-window)
   "Set up a window to display FILE with todo-list-mode.
@@ -142,20 +142,20 @@ When OTHER-WINDOW is non-nil, use other window."
 
 (defun todo-list--open-files ()
   "Open files from `todo-list-files' in side-by-side windows."
-  (cl-multiple-value-bind (projects goals) (todo-list--get-files)
+  (cl-multiple-value-bind (todos goals) (todo-list--get-files)
     ;; Open the files in side-by-side windows
     (delete-other-windows)
-    (todo-list--setup-file-window projects)
+    (todo-list--setup-file-window todos)
     (split-window-right)
     (todo-list--setup-file-window goals t)
-    (select-window (get-buffer-window (find-file-noselect projects)))
+    (select-window (get-buffer-window (find-file-noselect todos)))
     (todo-list-set-font-size)))
 
 (defun todo-list-save-buffers ()
   "Save any modified buffers in files from `todo-list-files'."
   (interactive)
-  (cl-multiple-value-bind (projects goals) (todo-list--get-files)
-    (dolist (file (list projects goals))
+  (cl-multiple-value-bind (todos goals) (todo-list--get-files)
+    (dolist (file (list todos goals))
       (let ((buffer (find-buffer-visiting file)))
         (when (and buffer (buffer-modified-p buffer))
           (with-current-buffer buffer
@@ -166,8 +166,8 @@ When OTHER-WINDOW is non-nil, use other window."
   (setq todo-list--files-open-p nil)
   ;; Save and kill the buffers
   (todo-list-save-buffers)
-  (cl-multiple-value-bind (projects goals) (todo-list--get-files)
-    (dolist (file (list projects goals))
+  (cl-multiple-value-bind (todos goals) (todo-list--get-files)
+    (dolist (file (list todos goals))
       (when-let ((buffer (find-buffer-visiting file)))
         (kill-buffer buffer))))
   ;; Restore window configuration
@@ -179,8 +179,8 @@ When OTHER-WINDOW is non-nil, use other window."
   "Hook to run when a buffer with todo-list-mode is killed.
 Restores window configuration when the last todo-list buffer is closed."
   (when todo-list--files-open-p
-    (cl-multiple-value-bind (projects goals) (todo-list--get-files)
-      (let ((files (list projects goals)))
+    (cl-multiple-value-bind (todos goals) (todo-list--get-files)
+      (let ((files (list todos goals)))
         (when (and (member (buffer-file-name) files)
                    (= 1 (cl-count-if (lambda (f)
                                        (get-buffer (file-name-nondirectory f)))
@@ -240,8 +240,8 @@ Restores window configuration when the last todo-list buffer is closed."
 (defun todo-list-set-font-size ()
   "Set the font size according to `todo-list-font-size'.
 Applies to all open todo-list buffers."
-  (cl-multiple-value-bind (projects goals) (todo-list--get-files)
-    (dolist (file (list projects goals))
+  (cl-multiple-value-bind (todos goals) (todo-list--get-files)
+    (dolist (file (list todos goals))
       (let ((buffer (find-buffer-visiting file)))
         (when buffer
           (with-current-buffer buffer
@@ -288,8 +288,8 @@ Prompts for selection first, then opens the todo-list view if needed."
     (user-error "No todo-list files configured. Set `todo-list-files' first"))
 
   ;; Load files as needed
-  (cl-multiple-value-bind (projects goals) (todo-list--get-files)
-    (let ((files (list projects goals))
+  (cl-multiple-value-bind (todos goals) (todo-list--get-files)
+    (let ((files (list todos goals))
           (entries '()))
 
       ;; Gather entries from all files - loading if needed
@@ -356,7 +356,7 @@ Requires being in an org buffer."
 ;;;###autoload
 (define-minor-mode todo-list-mode
   "Toggle Todo-List mode.
-A minor mode for managing projects and goals with org-mode."
+A minor mode for managing todo tasks and goals with org-mode."
   :lighter " todo"
   :keymap todo-list-mode-map
   ;; Only add/remove hook when toggling, not during mode initialization
