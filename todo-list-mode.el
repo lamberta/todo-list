@@ -143,12 +143,18 @@ When OTHER-WINDOW is non-nil, use other window."
 (defun todo-list--open-files ()
   "Open files from `todo-list-files' in side-by-side windows."
   (cl-multiple-value-bind (todos goals) (todo-list--get-files)
-    ;; Open the files in side-by-side windows
     (delete-other-windows)
-    (todo-list--setup-file-window todos)
-    (split-window-right)
-    (todo-list--setup-file-window goals t)
-    (select-window (get-buffer-window (find-file-noselect todos)))
+    ;; Create the split and store references to each window
+    (let ((left-win (selected-window))
+          (right-win (split-window-right)))
+      ;; Load left
+      (select-window left-win)
+      (todo-list--setup-file-window todos)
+      ;; Load right
+      (select-window right-win)
+      (todo-list--setup-file-window goals)
+      ;; Move focus back to the left window
+      (select-window left-win))
     (todo-list-set-font-size)))
 
 (defun todo-list-save-buffers ()
