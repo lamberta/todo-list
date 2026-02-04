@@ -6,9 +6,9 @@
 ;; Author: Billy Lamberta
 ;; URL: https://github.com/lamberta/todo-list
 ;; Created: Jan 2009
-;; Updated: Mar 2025
+;; Updated: Feb 2026
 ;; Keywords: convenience, outlines, org
-;; Version: 2.0.1
+;; Version: 2.0.2
 ;; Package-Requires: ((emacs "29.1"))
 
 ;; This file is free software; you can redistribute it and/or modify
@@ -29,23 +29,19 @@
 ;;; Commentary:
 
 ;; `todo-list-mode' is a minor mode that provides a two-panel view for
-;; managing todo tasks and goals using `org-mode'. This organization
-;; style was inspired by the Getting Things Done methodology but
-;; reduced to two basic collections to section off as you like: 1.
-;; active *todo* tasks, and 2. *goals* to organize projects that
-;; generate tasks.
+;; managing project and tasks using `org-mode'.
 ;;
 ;; Setup:
 ;;
-;; Clone the project and add this to your `.emacs':
+;; Clone the project and add this to your `.emacs`:
 ;;
 ;; (use-package todo-list-mode
 ;;   :load-path "~/src/todo-list"
 ;;   :after org
 ;;   :custom
 ;;   (todo-list-files
-;;     '(:todo "~/org/todo.org"
-;;       :goals "~/org/goals.org"))
+;;     '(:file-1 "~/org/todo.org"
+;;       :file-2 "~/org/goals.org"))
 ;;   :bind (("C-c t t" . todo-list-toggle)
 ;;          ("C-c t f" . todo-list-entry-find))
 ;;   :bind (:map todo-list-mode-map
@@ -71,10 +67,10 @@
   :group 'org)
 
 (defcustom todo-list-files nil
-  "Configuration for project and goal files.
-A plist with keys :todo and :goals pointing to org files."
-  :type '(plist :key-type (choice (const :todo)
-                                  (const :goals))
+  "Configuration for the two side-by-side files.
+A plist with keys :file-1 and :file-2 pointing to org files."
+  :type '(plist :key-type (choice (const :file-1)
+                                  (const :file-2))
                 :value-type (file :must-match t))
   :group 'todo-list)
 
@@ -99,7 +95,7 @@ A plist with keys :todo and :goals pointing to org files."
       (define-key map (kbd "s--") #'todo-list-decrease-font-size)
       (define-key map (kbd "s-0") #'todo-list-reset-font-size))
     map)
-  "Keymap for `todo-list-mode'.")
+  "Keymap for `todo-list-mode`.")
 
 ;;; Internal variables
 
@@ -112,17 +108,17 @@ A plist with keys :todo and :goals pointing to org files."
 ;;; File management
 
 (defun todo-list--get-files ()
-  "Validate and return the project and goal files.
-Returns project and goal files if valid, signals error otherwise."
-  (unless (and (plist-member todo-list-files :todo)
-               (plist-member todo-list-files :goals))
-    (user-error "`todo-list-files' requires both `:todo' and `:goals' entries"))
+  "Validate and return the configured files.
+Returns the two file paths if valid, signals error otherwise."
+  (unless (and (plist-member todo-list-files :file-1)
+               (plist-member todo-list-files :file-2))
+    (user-error "`todo-list-files' requires both `:file-1' and `:file-2' entries"))
 
-  (let ((todos (expand-file-name (plist-get todo-list-files :todo)))
-        (goals (expand-file-name (plist-get todo-list-files :goals))))
-    (unless (and (file-exists-p todos) (file-exists-p goals))
+  (let ((file-1 (expand-file-name (plist-get todo-list-files :file-1)))
+        (file-2 (expand-file-name (plist-get todo-list-files :file-2))))
+    (unless (and (file-exists-p file-1) (file-exists-p file-2))
       (user-error "Unable to read both file entries in `todo-list-files'"))
-    (cl-values todos goals)))
+    (cl-values file-1 file-2)))
 
 (defun todo-list--setup-file-window (file &optional other-window)
   "Set up a window to display FILE with todo-list-mode.
@@ -142,17 +138,17 @@ When OTHER-WINDOW is non-nil, use other window."
 
 (defun todo-list--open-files ()
   "Open files from `todo-list-files' in side-by-side windows."
-  (cl-multiple-value-bind (todos goals) (todo-list--get-files)
+  (cl-multiple-value-bind (file-1 file-2) (todo-list--get-files)
     (delete-other-windows)
     ;; Create the split and store references to each window
     (let ((left-win (selected-window))
           (right-win (split-window-right)))
       ;; Load left
       (select-window left-win)
-      (todo-list--setup-file-window todos)
+      (todo-list--setup-file-window file-1)
       ;; Load right
       (select-window right-win)
-      (todo-list--setup-file-window goals)
+      (todo-list--setup-file-window file-2)
       ;; Move focus back to the left window
       (select-window left-win))
     (todo-list-set-font-size)))
@@ -160,8 +156,8 @@ When OTHER-WINDOW is non-nil, use other window."
 (defun todo-list-save-buffers ()
   "Save any modified buffers in files from `todo-list-files'."
   (interactive)
-  (cl-multiple-value-bind (todos goals) (todo-list--get-files)
-    (dolist (file (list todos goals))
+  (cl-multiple-value-bind (file-1 file-2) (todo-list--get-files)
+    (dolist (file (list file-1 file-2))
       (let ((buffer (find-buffer-visiting file)))
         (when (and buffer (buffer-modified-p buffer))
           (with-current-buffer buffer
@@ -172,8 +168,8 @@ When OTHER-WINDOW is non-nil, use other window."
   (setq todo-list--files-open-p nil)
   ;; Save and kill the buffers
   (todo-list-save-buffers)
-  (cl-multiple-value-bind (todos goals) (todo-list--get-files)
-    (dolist (file (list todos goals))
+  (cl-multiple-value-bind (file-1 file-2) (todo-list--get-files)
+    (dolist (file (list file-1 file-2))
       (when-let ((buffer (find-buffer-visiting file)))
         (kill-buffer buffer))))
   ;; Restore window configuration
@@ -185,11 +181,10 @@ When OTHER-WINDOW is non-nil, use other window."
   "Hook to run when a buffer with todo-list-mode is killed.
 Restores window configuration when the last todo-list buffer is closed."
   (when todo-list--files-open-p
-    (cl-multiple-value-bind (todos goals) (todo-list--get-files)
-      (let ((files (list todos goals)))
+    (cl-multiple-value-bind (file-1 file-2) (todo-list--get-files)
+      (let ((files (list file-1 file-2)))
         (when (and (member (buffer-file-name) files)
-                   (= 1 (cl-count-if (lambda (f)
-                                       (get-buffer (file-name-nondirectory f)))
+                   (= 1 (cl-count-if (lambda (f) (get-buffer (file-name-nondirectory f)))
                           files)))
           ;; This is the last of our managed files being killed
           (setq todo-list--files-open-p nil)
@@ -244,10 +239,10 @@ Restores window configuration when the last todo-list buffer is closed."
 ;;; Font size commands
 
 (defun todo-list-set-font-size ()
-  "Set the font size according to `todo-list-font-size'.
+  "Set the font size according to `todo-list-font-size`.
 Applies to all open todo-list buffers."
-  (cl-multiple-value-bind (todos goals) (todo-list--get-files)
-    (dolist (file (list todos goals))
+  (cl-multiple-value-bind (file-1 file-2) (todo-list--get-files)
+    (dolist (file (list file-1 file-2))
       (let ((buffer (find-buffer-visiting file)))
         (when buffer
           (with-current-buffer buffer
@@ -294,8 +289,8 @@ Prompts for selection first, then opens the todo-list view if needed."
     (user-error "No todo-list files configured. Set `todo-list-files' first"))
 
   ;; Load files as needed
-  (cl-multiple-value-bind (todos goals) (todo-list--get-files)
-    (let ((files (list todos goals))
+  (cl-multiple-value-bind (file-1 file-2) (todo-list--get-files)
+    (let ((files (list file-1 file-2))
           (entries '()))
 
       ;; Gather entries from all files - loading if needed
@@ -309,7 +304,7 @@ Prompts for selection first, then opens the todo-list view if needed."
                      ;; Remove text properties and trim whitespace
                      (heading (string-trim (substring-no-properties raw-heading)))
                      (display-name (format "%s | %s"
-                                     heading (file-name-sans-extension file-name))))
+                                           heading (file-name-sans-extension file-name))))
                 (push (list display-name file pos) entries)))
             nil nil)))
 
@@ -318,19 +313,19 @@ Prompts for selection first, then opens the todo-list view if needed."
              (selection (completing-read "Entry: " choices nil t)))
 
         (if-let ((entry (assoc selection entries)))
-          (let ((target-file (nth 1 entry))
-                (target-pos (nth 2 entry)))
+            (let ((target-file (nth 1 entry))
+                  (target-pos (nth 2 entry)))
 
-            ;; 2. Open todo-list view if needed
-            (unless todo-list--files-open-p
-              (todo-list-toggle))
+              ;; 2. Open todo-list view if needed
+              (unless todo-list--files-open-p
+                (todo-list-toggle))
 
-            ;; 3. Navigate to selected entry
-            (let ((buffer (get-file-buffer target-file)))
-              (when buffer
-                (pop-to-buffer buffer)
-                (goto-char target-pos)
-                (org-fold-show-context 'agenda))))
+              ;; 3. Navigate to selected entry
+              (let ((buffer (get-file-buffer target-file)))
+                (when buffer
+                  (pop-to-buffer buffer)
+                  (goto-char target-pos)
+                  (org-fold-show-context 'agenda))))
           (user-error "Entry not found: %s" selection))))))
 
 (defun todo-list-entry-add-properties ()
